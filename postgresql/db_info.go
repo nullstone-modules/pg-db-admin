@@ -1,10 +1,11 @@
 package postgresql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"github.com/blang/semver"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v4"
 	"strings"
 	"unicode"
 )
@@ -16,29 +17,30 @@ type DbInfo struct {
 	CurrentUser       string
 }
 
-func CalcDbConnectionInfo(db *sql.DB) (*DbInfo, error) {
+func CalcDbConnectionInfo(conn *pgx.Conn) (*DbInfo, error) {
 	dci := &DbInfo{}
 
 	var superuser bool
-	if err := db.QueryRow("SELECT rolsuper FROM pg_roles WHERE rolname = CURRENT_USER").Scan(&superuser); err != nil {
+	sql := `SELECT rolsuper FROM pg_roles WHERE rolname = CURRENT_USER`
+	if err := conn.QueryRow(context.Background(), sql).Scan(&superuser); err != nil {
 		return nil, fmt.Errorf("could not check if current user is superuser: %w", err)
 	}
 
 	var err error
 
-	if dci.DbVersion, err = detectDbVersion(db); err != nil {
-		db.Close()
+	if dci.DbVersion, err = detectDbVersion(conn); err != nil {
+		conn.Close(context.Background())
 		return nil, fmt.Errorf("error detecting capabilities: %w", err)
 	}
 	dci.SupportedFeatures = CalcSupportedFeatures(dci.DbVersion)
-	dci.CurrentUser, err = getCurrentUser(db)
+	dci.CurrentUser, err = getCurrentUser(conn)
 
 	return dci, nil
 }
 
-func detectDbVersion(db *sql.DB) (semver.Version, error) {
+func detectDbVersion(conn *pgx.Conn) (semver.Version, error) {
 	var pgVersion string
-	err := db.QueryRow(`SELECT VERSION()`).Scan(&pgVersion)
+	err := conn.QueryRow(context.Background(), `SELECT VERSION()`).Scan(&pgVersion)
 	if err != nil {
 		return semver.Version{}, fmt.Errorf("error PostgreSQL version: %w", err)
 	}
@@ -60,9 +62,9 @@ func detectDbVersion(db *sql.DB) (semver.Version, error) {
 	return version, nil
 }
 
-func getCurrentUser(db *sql.DB) (string, error) {
+func getCurrentUser(conn *pgx.Conn) (string, error) {
 	var currentUser string
-	err := db.QueryRow("SELECT CURRENT_USER").Scan(&currentUser)
+	err := conn.QueryRow(context.Background(), "SELECT CURRENT_USER").Scan(&currentUser)
 	switch {
 	case err == sql.ErrNoRows:
 		return "", fmt.Errorf("SELECT CURRENT_USER returns now row, this is quite disturbing")

@@ -2,9 +2,10 @@ package postgresql
 
 import (
 	"bytes"
-	"database/sql"
+	"context"
 	"fmt"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v4"
+	"strconv"
 	"strings"
 )
 
@@ -28,21 +29,21 @@ func DefaultDatabase() Database {
 	}
 }
 
-func (d Database) Create(db *sql.DB, info DbInfo) (err error) {
+func (d Database) Create(conn *pgx.Conn, info DbInfo) (err error) {
 	err = nil
 
 	if d.Owner != "" && !info.IsSuperuser {
 		tempMembership := TempRoleMembership{Role: d.Owner}
-		grant, err := tempMembership.Grant(db, info.CurrentUser)
+		grant, err := tempMembership.Grant(conn, info.CurrentUser)
 		if grant != nil {
 			defer func() {
-				err = grant.Revoke(db)
+				err = grant.Revoke(conn)
 			}()
 		}
 	}
 
-	sql := d.generateCreateSql(info.SupportedFeatures)
-	if _, err := db.Exec(sql); err != nil {
+	sql, args := d.generateCreateSql(info.SupportedFeatures)
+	if _, err := conn.Exec(context.Background(), sql, args...); err != nil {
 		return fmt.Errorf("Error creating database %q: %w", d.Name, err)
 	}
 
@@ -50,26 +51,34 @@ func (d Database) Create(db *sql.DB, info DbInfo) (err error) {
 	return
 }
 
-func (d Database) generateCreateSql(features Features) string {
+func (d Database) generateCreateSql(features Features) (string, []interface{}) {
+	args := make([]interface{}, 0)
+
 	b := bytes.NewBufferString("CREATE DATABASE ")
-	fmt.Fprint(b, pq.QuoteIdentifier(d.Name))
+	nameIdentifier := pgx.Identifier{d.Name}
+	fmt.Fprint(b, nameIdentifier.Sanitize())
 
 	if d.Owner != "" {
-		fmt.Fprint(b, " OWNER ", pq.QuoteIdentifier(d.Owner))
+		fmt.Fprint(b, " OWNER $", strconv.Itoa(len(args)+1))
+		args = append(args, d.Owner)
 	}
 
 	switch template := d.Template; {
 	case strings.ToUpper(template) == "DEFAULT":
 		fmt.Fprint(b, " TEMPLATE DEFAULT")
 	case template != "":
-		fmt.Fprint(b, " TEMPLATE ", pq.QuoteIdentifier(template))
+		fmt.Fprint(b, " TEMPLATE ")
+		fmt.Fprint(b, "$", strconv.Itoa(len(args)+1))
+		args = append(args, template)
 	}
 
 	switch encoding := d.Encoding; {
 	case strings.ToUpper(encoding) == "DEFAULT":
 		fmt.Fprint(b, " ENCODING DEFAULT")
 	case encoding != "":
-		fmt.Fprint(b, " ENCODING ", pq.QuoteLiteral(encoding))
+		fmt.Fprint(b, " ENCODING ")
+		fmt.Fprint(b, "$", strconv.Itoa(len(args)+1))
+		args = append(args, encoding)
 	}
 
 	// Don't specify LC_COLLATE if user didn't specify it
@@ -78,7 +87,9 @@ func (d Database) generateCreateSql(features Features) string {
 	case strings.ToUpper(collation) == "DEFAULT":
 		fmt.Fprint(b, " LC_COLLATE DEFAULT")
 	case collation != "":
-		fmt.Fprint(b, " LC_COLLATE ", pq.QuoteLiteral(collation))
+		fmt.Fprint(b, " LC_COLLATE ")
+		fmt.Fprint(b, "$", strconv.Itoa(len(args)+1))
+		args = append(args, collation)
 	}
 
 	// Don't specify LC_CTYPE if user didn't specify it
@@ -87,14 +98,18 @@ func (d Database) generateCreateSql(features Features) string {
 	case strings.ToUpper(lcCtype) == "DEFAULT":
 		fmt.Fprint(b, " LC_CTYPE DEFAULT")
 	case lcCtype != "":
-		fmt.Fprint(b, " LC_CTYPE ", pq.QuoteLiteral(lcCtype))
+		fmt.Fprint(b, " LC_CTYPE ")
+		fmt.Fprint(b, "$", strconv.Itoa(len(args)+1))
+		args = append(args, lcCtype)
 	}
 
 	switch tablespace := d.TablespaceName; {
 	case strings.ToUpper(tablespace) == "DEFAULT":
 		fmt.Fprint(b, " TABLESPACE DEFAULT")
 	case tablespace != "":
-		fmt.Fprint(b, " TABLESPACE ", pq.QuoteIdentifier(tablespace))
+		fmt.Fprint(b, " TABLESPACE ")
+		fmt.Fprint(b, "$", strconv.Itoa(len(args)+1))
+		args = append(args, tablespace)
 	}
 
 	if features.IsSupported(FeatureDBAllowConnections) {
@@ -107,7 +122,7 @@ func (d Database) generateCreateSql(features Features) string {
 		fmt.Fprint(b, " IS_TEMPLATE ", d.IsTemplate)
 	}
 
-	return b.String()
+	return b.String(), args
 }
 
 func (d Database) Update() error {
