@@ -23,7 +23,11 @@ jobs:
 
       # Package files into tgz
       - name: Package AWS module
-        run: tar -cvzf aws-module.tgz aws/tf/*.tf
+        run: |
+          cd aws/tf
+          tar -cvzf aws-module.tgz *.tf
+          mv aws-module.tgz ../../
+          cd -
 
       # Publish to nullstone
       - name: Publish AWS module
