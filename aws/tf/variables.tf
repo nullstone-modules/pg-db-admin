@@ -1,7 +1,7 @@
 variable "image_uri" {
   description = "The docker image to utilize. By default, this uses nullstone's 'latest' publicly available image."
   type        = string
-  default     = "public.ecr.aws/"
+  default     = "public.ecr.aws/nullstone/pg-db-admin"
 }
 
 variable "name" {
@@ -15,8 +15,14 @@ variable "tags" {
 }
 
 variable "host" {
-  description = "The database cluster endpoint to connect"
+  description = "The database cluster host to connect"
   type        = string
+}
+
+variable "port" {
+  description = "The database cluster port to connect"
+  type        = string
+  default = "5432"
 }
 
 variable "database" {
