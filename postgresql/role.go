@@ -17,6 +17,7 @@ func (r Role) Create(conn *pgx.Conn) error {
 	row := conn.QueryRow(ctx, sql, r.Name)
 	var result int
 	if err := row.Scan(&result); err == pgx.ErrNoRows {
+		fmt.Printf("creating role %q\n", r.Name)
 		// Role does not exist yet, create
 		nameIdentifier := pgx.Identifier{r.Name}
 		sql := fmt.Sprintf(`CREATE USER %s WITH PASSWORD $1`, nameIdentifier.Sanitize())

@@ -33,8 +33,12 @@ func (d Database) Create(conn *pgx.Conn, info DbInfo) (err error) {
 	err = nil
 
 	if d.Owner != "" && !info.IsSuperuser {
-		tempMembership := TempRoleMembership{Role: d.Owner}
-		grant, err := tempMembership.Grant(conn, info.CurrentUser)
+		tempMembership := TempRoleMembership{
+			Role:        d.Owner,
+			CurrentUser: info.CurrentUser,
+		}
+		var grant *TempGrant
+		grant, err = tempMembership.Grant(conn)
 		if grant != nil {
 			defer func() {
 				err = grant.Revoke(conn)
@@ -43,8 +47,9 @@ func (d Database) Create(conn *pgx.Conn, info DbInfo) (err error) {
 	}
 
 	sql, args := d.generateCreateSql(info.SupportedFeatures)
+	fmt.Printf("Creating database %q, assigning owner to service user %q\n", d.Name, d.Owner)
 	if _, err := conn.Exec(context.Background(), sql, args...); err != nil {
-		return fmt.Errorf("Error creating database %q: %w", d.Name, err)
+		return fmt.Errorf("error creating database %q: %w", d.Name, err)
 	}
 
 	// err can be set by defer
