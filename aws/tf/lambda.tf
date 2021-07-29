@@ -12,7 +12,7 @@ resource "aws_lambda_function" "db_admin" {
   }
 
   vpc_config {
-    security_group_ids = var.network.security_group_ids
+    security_group_ids = concat([aws_security_group.db_admin.id], var.network.security_group_ids)
     subnet_ids         = var.network.subnet_ids
   }
 }
