@@ -21,7 +21,10 @@ jobs:
         uses: actions/setup-go@v2
 
       - name: Build binaries into packages
-        run: make build
+        run: |
+          make build
+          export PATH=$GOPATH/bin:$PATH
+          make package
 
       - name: Find version
         id: version
