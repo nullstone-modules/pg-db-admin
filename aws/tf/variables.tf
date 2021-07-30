@@ -1,9 +1,3 @@
-variable "image_uri" {
-  description = "The docker image to utilize. By default, this uses nullstone's 'latest' publicly available image."
-  type        = string
-  default     = "public.ecr.aws/nullstone/pg-db-admin"
-}
-
 variable "name" {
   description = "The name of the lambda function and role"
   type        = string
