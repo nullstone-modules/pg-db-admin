@@ -1,18 +1,11 @@
-data "archive_file" "db_admin" {
-  type             = "zip"
-  source_file      = "${path.module}/files/pg-db-admin"
-  output_file_mode = "0755"
-  output_path      = "${path.module}/files/pg-db-admin.zip"
-}
-
 resource "aws_lambda_function" "db_admin" {
   function_name    = var.name
   tags             = var.tags
   role             = aws_iam_role.db_admin.arn
-  package_type     = "Zip"
   runtime          = "go1.x"
-  filename         = data.archive_file.db_admin.output_path
-  source_code_hash = data.archive_file.db_admin.output_base64sha256
+  handler          = "pg-db-admin"
+  filename         = "${path.module}/files/pg-db-admin.zip"
+  source_code_hash = filebase64sha256("${path.module}/files/pg-db-admin.zip")
 
   environment {
     variables = {

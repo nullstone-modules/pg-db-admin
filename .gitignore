@@ -18,3 +18,4 @@ vendor/
 .idea/
 
 aws-module.tgz
+aws/tf/files/pg-db-admin

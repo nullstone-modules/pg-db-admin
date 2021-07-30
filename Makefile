@@ -1,9 +1,16 @@
 NAME := pg-db-admin
 
-.PHONY: build publish
+.PHONY: tools build
+
+tools:
+	cd ~ && go get -u github.com/aws/aws-lambda-go/cmd/build-lambda-zip && cd -
 
 build:
-	GOOS=linux go build -o ./aws/tf/files/pg-db-admin ./aws/
+	mkdir -p ./aws/tf/files
+	GOOS=linux GOARCH=amd64 go build -o ./aws/tf/files/pg-db-admin ./aws/
 
-package:
-	cd ./aws/tf && tar -cvzf aws-module.tgz *.tf files/* && mv aws-module.tgz ../../
+package: tools
+	cd ./aws/tf \
+		&& build-lambda-zip --output files/pg-db-admin.zip files/pg-db-admin \
+		&& tar -cvzf aws-module.tgz *.tf files/pg-db-admin.zip \
+		&& mv aws-module.tgz ../../
