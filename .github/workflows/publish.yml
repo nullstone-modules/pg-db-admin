@@ -23,9 +23,6 @@ jobs:
       - name: Build binaries into packages
         run: |
           make build
-          export PATH=$GOPATH/bin:$PATH
-          make tools
-          ls $GOPATH/bin
           make package
 
       - name: Find version
