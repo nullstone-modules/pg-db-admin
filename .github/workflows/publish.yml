@@ -20,16 +20,12 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v2
 
-      - name: Build binaries
+      - name: Build binaries into packages
         run: make build
 
       - name: Find version
         id: version
         run: echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
-
-      # Package files into tgz
-      - name: Package AWS module
-        run: make package
 
       # Publish to nullstone
       - name: Publish AWS module
