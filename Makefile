@@ -10,4 +10,5 @@ build:
 	GOOS=linux GOARCH=amd64 go build -o ./aws/tf/files/pg-db-admin ./aws/
 
 package: tools
-	$(shell go env GOPATH)/bin/build-lambda-zip --output ./aws/tf/files/pg-db-admin.zip ./aws/tf/files/pg-db-admin
+	build-lambda-zip --output ./aws/tf/files/pg-db-admin.zip ./aws/tf/files/pg-db-admin
+	cd ./aws/tf && tar -cvzf aws-module.tgz *.tf files/pg-db-admin.zip && mv aws-module.tgz ../../
