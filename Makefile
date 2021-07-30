@@ -10,4 +10,4 @@ build:
 	GOOS=linux GOARCH=amd64 go build -o ./aws/tf/files/pg-db-admin ./aws/
 
 package: tools
-	$$GOPATH/bin/build-lambda-zip --output ./aws/tf/files/pg-db-admin.zip ./aws/tf/files/pg-db-admin
+	$(shell go env GOPATH)/bin/build-lambda-zip --output ./aws/tf/files/pg-db-admin.zip ./aws/tf/files/pg-db-admin
