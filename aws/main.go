@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
+	"log"
 	"os"
 )
 
@@ -66,6 +67,12 @@ func createDatabase(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("error introspecting postgres cluster: %w", err)
 	}
 
+	if exists, err := newDatabase.Exists(db); err != nil {
+		return fmt.Errorf("error checking for database: %w", err)
+	} else if exists {
+		log.Printf("database %q already exists\n", newDatabase.Name)
+		return nil
+	}
 	if err := newDatabase.Create(db, *dbInfo); err != nil {
 		return fmt.Errorf("error creating database: %w", err)
 	}
@@ -94,6 +101,12 @@ func createUser(ctx context.Context, metadata map[string]string) error {
 	}
 	defer db.Close()
 
+	if exists, err := newUser.Exists(db); err != nil {
+		return fmt.Errorf("error checking for user: %w", err)
+	} else if exists {
+		log.Printf("user %q already exists\n", newUser.Name)
+		return nil
+	}
 	if err := newUser.Create(db); err != nil {
 		return fmt.Errorf("error creating user: %w", err)
 	}

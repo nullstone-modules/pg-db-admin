@@ -3,13 +3,14 @@ package acc
 import (
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
 	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 )
 
 func TestRole(t *testing.T) {
-	//if os.Getenv("ACC") != "1" {
-	//	t.Skip("Set ACC=1 to run e2e tests")
-	//}
+	if os.Getenv("ACC") != "1" {
+		t.Skip("Set ACC=1 to run e2e tests")
+	}
 
 	db := createDb(t)
 	defer db.Close()
