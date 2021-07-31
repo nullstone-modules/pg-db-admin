@@ -14,3 +14,14 @@ package: tools
 		&& build-lambda-zip --output files/pg-db-admin.zip files/pg-db-admin \
 		&& tar -cvzf aws-module.tgz *.tf files/pg-db-admin.zip \
 		&& mv aws-module.tgz ../../
+
+acc: acc-up acc-run acc-down
+
+acc-up:
+	cd acc && docker-compose -p pg-db-admin-acc up -d db
+
+acc-run:
+	ACC=1 gotestsum ./acc/...
+
+acc-down:
+	cd acc && docker-compose -p pg-db-admin-acc down

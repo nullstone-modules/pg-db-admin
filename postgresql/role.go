@@ -25,7 +25,7 @@ func (r Role) Create(conn *pgx.Conn) error {
 			return fmt.Errorf("error creating user %q: %w", r.Name, err)
 		}
 	} else if err != nil {
-		return err
+		return fmt.Errorf("error searching for existing role: %w", err)
 	}
 	return nil
 }
