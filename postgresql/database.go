@@ -2,9 +2,9 @@ package postgresql
 
 import (
 	"bytes"
-	"context"
+	"database/sql"
 	"fmt"
-	"github.com/jackc/pgx/v4"
+	"github.com/lib/pq"
 	"strconv"
 	"strings"
 )
@@ -29,7 +29,7 @@ func DefaultDatabase() Database {
 	}
 }
 
-func (d Database) Create(conn *pgx.Conn, info DbInfo) (err error) {
+func (d Database) Create(db *sql.DB, info DbInfo) (err error) {
 	err = nil
 
 	if d.Owner != "" && !info.IsSuperuser {
@@ -38,17 +38,17 @@ func (d Database) Create(conn *pgx.Conn, info DbInfo) (err error) {
 			CurrentUser: info.CurrentUser,
 		}
 		var grant *TempGrant
-		grant, err = tempMembership.Grant(conn)
+		grant, err = tempMembership.Grant(db)
 		if grant != nil {
 			defer func() {
-				err = grant.Revoke(conn)
+				err = grant.Revoke(db)
 			}()
 		}
 	}
 
 	sql, args := d.generateCreateSql(info.SupportedFeatures)
 	fmt.Printf("Creating database %q, assigning owner to service user %q\n", d.Name, d.Owner)
-	if _, err := conn.Exec(context.Background(), sql, args...); err != nil {
+	if _, err := db.Exec(sql, args...); err != nil {
 		return fmt.Errorf("error creating database %q: %w", d.Name, err)
 	}
 
@@ -60,8 +60,7 @@ func (d Database) generateCreateSql(features Features) (string, []interface{}) {
 	args := make([]interface{}, 0)
 
 	b := bytes.NewBufferString("CREATE DATABASE ")
-	nameIdentifier := pgx.Identifier{d.Name}
-	fmt.Fprint(b, nameIdentifier.Sanitize())
+	fmt.Fprint(b, pq.QuoteIdentifier(d.Name))
 
 	if d.Owner != "" {
 		fmt.Fprint(b, " OWNER $", strconv.Itoa(len(args)+1))
@@ -130,10 +129,20 @@ func (d Database) generateCreateSql(features Features) (string, []interface{}) {
 	return b.String(), args
 }
 
-func (d Database) Update() error {
+func (d *Database) Read(db *sql.DB) error {
+	var owner string
+	row := db.QueryRow( `SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, d.Name)
+	if err := row.Scan(&owner); err != nil {
+		return err
+	}
+	d.Owner = owner
 	return nil
 }
 
-func (d Database) Drop() error {
+func (d Database) Update(db *sql.DB) error {
+	return nil
+}
+
+func (d Database) Drop(db *sql.DB) error {
 	return nil
 }

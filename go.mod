@@ -8,6 +8,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.5.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.4.1
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/jackc/pgx/v4 v4.13.0
+	github.com/lib/pq v1.10.2
 	github.com/stretchr/testify v1.7.0
 )
