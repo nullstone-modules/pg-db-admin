@@ -4,8 +4,10 @@ resource "aws_lambda_function" "db_admin" {
   role             = aws_iam_role.db_admin.arn
   runtime          = "go1.x"
   handler          = "pg-db-admin"
-  filename         = "${path.module}/files/pg-db-admin.zip"
+  filename          = "${path.module}/files/pg-db-admin.zip"
   source_code_hash = filebase64sha256("${path.module}/files/pg-db-admin.zip")
+  // This can take ~5s to create a db sometimes
+  timeout          = 10
 
   environment {
     variables = {

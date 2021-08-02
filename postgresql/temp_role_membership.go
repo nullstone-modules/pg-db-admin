@@ -6,23 +6,17 @@ import (
 	"github.com/lib/pq"
 )
 
-// TempRoleMembership grants role membership of the target Role to the CurrentUser
+// GrantRoleMembership grants role membership of the target 'role' to the 'currentUser'
 // This is used to perform commands if user is not a superuser
 // For instance, when using AWS RDS, user is not given superuser
-type TempRoleMembership struct {
-	Role        string
-	CurrentUser string
-}
-
-// Grant grants the role *role* to the user *member*.
 // It returns false if the grant is not needed because the user is already
 // a member of this role.
-func (t TempRoleMembership) Grant(db *sql.DB) (*TempGrant, error) {
-	if t.CurrentUser == t.Role {
+func GrantRoleMembership(db *sql.DB, role string, currentUser string) (*TempGrant, error) {
+	if currentUser == role {
 		return nil, nil
 	}
 
-	isMember, err := isMemberOfRole(db, t.CurrentUser, t.Role)
+	isMember, err := isMemberOfRole(db, currentUser, role)
 	if err != nil {
 		return nil, err
 	}
@@ -30,29 +24,29 @@ func (t TempRoleMembership) Grant(db *sql.DB) (*TempGrant, error) {
 		return nil, nil
 	}
 
-	fmt.Printf("Granting %q temporary access to role %q\n", t.CurrentUser, t.Role)
+	fmt.Printf("Granting %q temporary access to role %q\n", currentUser, role)
 
 	// Take a lock on db currentUser to avoid multiple database creation at the same time
 	// It can fail if they grant the same owner to current at the same time as it's not done in transaction.
 	lockTxn, err := db.Begin()
-	if err := t.pgLockRole(lockTxn, t.CurrentUser); err != nil {
+	if err := pgLockRole(lockTxn, currentUser); err != nil {
 		return nil, err
 	}
 
-	sql := fmt.Sprintf("GRANT %s TO %s", pq.QuoteIdentifier(t.Role), pq.QuoteIdentifier(t.CurrentUser))
+	sql := fmt.Sprintf("GRANT %s TO %s", pq.QuoteIdentifier(role), pq.QuoteIdentifier(currentUser))
 	if _, err := db.Exec(sql); err != nil {
 		lockTxn.Rollback()
-		return nil, fmt.Errorf("error granting role %s to %s: %w", t.Role, t.CurrentUser, err)
+		return nil, fmt.Errorf("error granting role %s to %s: %w", role, currentUser, err)
 	}
 	return &TempGrant{
 		Tx:          lockTxn,
-		Role:        t.Role,
-		CurrentUser: t.CurrentUser,
+		Role:        role,
+		CurrentUser: currentUser,
 	}, nil
 }
 
 // Lock a role and all his members to avoid concurrent updates on some resources
-func (t TempRoleMembership) pgLockRole(txn *sql.Tx, role string) error {
+func pgLockRole(txn *sql.Tx, role string) error {
 	sql := `SELECT pg_advisory_xact_lock(oid::bigint) FROM pg_roles WHERE rolname = $1`
 	if _, err := txn.Exec(sql, role); err != nil {
 		return fmt.Errorf("could not get advisory lock for role %s: %w", role, err)
@@ -63,6 +57,19 @@ func (t TempRoleMembership) pgLockRole(txn *sql.Tx, role string) error {
 		return fmt.Errorf("could not get advisory lock for members of role %s: %w", role, err)
 	}
 
+	return nil
+}
+
+type Revoker interface {
+	Revoke(db *sql.DB) error
+}
+
+type NoopRevoker struct {
+	Tx *sql.Tx
+}
+
+func (t NoopRevoker) Revoke(db *sql.DB) error {
+	defer t.Tx.Rollback()
 	return nil
 }
 
