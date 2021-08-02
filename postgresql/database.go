@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"github.com/go-multierror/multierror"
 	"github.com/lib/pq"
 	"strings"
 )
@@ -28,31 +29,29 @@ func DefaultDatabase() Database {
 	}
 }
 
-func (d Database) Create(db *sql.DB, info DbInfo) (err error) {
-	err = nil
-
+func (d Database) Create(db *sql.DB, info DbInfo) error {
+	var grant Revoker = NoopRevoker{}
 	if d.Owner != "" && !info.IsSuperuser {
-		tempMembership := TempRoleMembership{
-			Role:        d.Owner,
-			CurrentUser: info.CurrentUser,
-		}
-		var grant *TempGrant
-		grant, err = tempMembership.Grant(db)
-		if grant != nil {
-			defer func() {
-				err = grant.Revoke(db)
-			}()
+		var err error
+		grant, err = GrantRoleMembership(db, d.Owner, info.CurrentUser)
+		if err != nil {
+			return fmt.Errorf("error granting temporary membership: %w", err)
 		}
 	}
 
 	sq := d.generateCreateSql(info.SupportedFeatures)
 	fmt.Printf("Creating database %q, assigning owner to service user %q\n", d.Name, d.Owner)
+	errs := make([]error, 0)
 	if _, err := db.Exec(sq); err != nil {
-		return fmt.Errorf("error creating database %q: %w", d.Name, err)
+		errs = append(errs, fmt.Errorf("error creating database %q: %w", d.Name, err))
 	}
-
-	// err can be set by defer
-	return
+	if err := grant.Revoke(db); err != nil {
+		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", err))
+	}
+	if len(errs) > 0 {
+		return multierror.New(errs)
+	}
+	return nil
 }
 
 func (d Database) generateCreateSql(features Features) string {
