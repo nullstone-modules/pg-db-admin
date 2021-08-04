@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/go-multierror/multierror"
 	"github.com/lib/pq"
+	"log"
 	"strings"
 )
 
@@ -114,6 +115,19 @@ func (d Database) generateCreateSql(features Features) string {
 	return b.String()
 }
 
+func (d Database) Ensure(db *sql.DB, info DbInfo) error {
+	if exists, err := d.Exists(db); exists {
+		log.Printf("database %q already exists\n", d.Name)
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("error checking for database %q: %w", d.Name, err)
+	}
+	if err := d.Create(db, info); err != nil {
+		return fmt.Errorf("error creating database %q: %w", d.Name, err)
+	}
+	return nil
+}
+
 func (d Database) Exists(db *sql.DB) (bool, error) {
 	check := Database{Name: d.Name}
 	if err := check.Read(db); err != nil {
@@ -127,7 +141,7 @@ func (d Database) Exists(db *sql.DB) (bool, error) {
 
 func (d *Database) Read(db *sql.DB) error {
 	var owner string
-	row := db.QueryRow( `SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, d.Name)
+	row := db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, d.Name)
 	if err := row.Scan(&owner); err != nil {
 		return err
 	}

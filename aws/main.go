@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
-	"log"
 	"os"
 )
 
@@ -18,6 +17,7 @@ const (
 
 	eventTypeCreateDatabase = "create-database"
 	eventTypeCreateUser     = "create-user"
+	eventTypeCreateDbAccess = "create-db-access"
 )
 
 type AdminEvent struct {
@@ -32,31 +32,24 @@ func main() {
 func HandleRequest(ctx context.Context, event AdminEvent) error {
 	switch event.Type {
 	case eventTypeCreateDatabase:
-		return createDatabase(ctx, event.Metadata)
+		return ensureDatabase(ctx, event.Metadata)
 	case eventTypeCreateUser:
-		return createUser(ctx, event.Metadata)
+		return ensureUser(ctx, event.Metadata)
+	case eventTypeCreateDbAccess:
+		return grantUserDbAccess(ctx, event.Metadata)
 	default:
 		return fmt.Errorf("unknown event %q", event.Type)
 	}
 }
 
-func createDatabase(ctx context.Context, metadata map[string]string) error {
+func ensureDatabase(ctx context.Context, metadata map[string]string) error {
 	newDatabase := postgresql.DefaultDatabase()
 	newDatabase.Name, _ = metadata["databaseName"]
 	if newDatabase.Name == "" {
 		return fmt.Errorf("cannot create database: databaseName is required")
 	}
-	newDatabase.Owner, _ = metadata["owner"]
-	if newDatabase.Owner == "" {
-		return fmt.Errorf("cannot create database: owner is required")
-	}
 
-	connUrl, err := getConnectionUrl(ctx)
-	if err != nil {
-		return fmt.Errorf("error retrieving postgres connection url: %w", err)
-	}
-
-	db, err := sql.Open("postgres", connUrl)
+	db, err := getDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
@@ -67,19 +60,17 @@ func createDatabase(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("error introspecting postgres cluster: %w", err)
 	}
 
-	if exists, err := newDatabase.Exists(db); err != nil {
-		return fmt.Errorf("error checking for database: %w", err)
-	} else if exists {
-		log.Printf("database %q already exists\n", newDatabase.Name)
-		return nil
+	// Create a role with the same name as the database to give ownership
+	ownerRole := postgresql.Role{Name: newDatabase.Name}
+	if err := ownerRole.Ensure(db); err != nil {
+		return fmt.Errorf("error ensuring database owner role: %w", err)
 	}
-	if err := newDatabase.Create(db, *dbInfo); err != nil {
-		return fmt.Errorf("error creating database: %w", err)
-	}
-	return nil
+	newDatabase.Owner = ownerRole.Name
+
+	return newDatabase.Ensure(db, *dbInfo)
 }
 
-func createUser(ctx context.Context, metadata map[string]string) error {
+func ensureUser(ctx context.Context, metadata map[string]string) error {
 	newUser := postgresql.Role{}
 	newUser.Name, _ = metadata["username"]
 	if newUser.Name == "" {
@@ -90,27 +81,51 @@ func createUser(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("cannot create user: password is required")
 	}
 
-	connUrl, err := getConnectionUrl(ctx)
-	if err != nil {
-		return fmt.Errorf("error retrieving postgres connection url: %w", err)
-	}
-
-	db, err := sql.Open("postgres", connUrl)
+	db, err := getDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
 	defer db.Close()
 
-	if exists, err := newUser.Exists(db); err != nil {
-		return fmt.Errorf("error checking for user: %w", err)
-	} else if exists {
-		log.Printf("user %q already exists\n", newUser.Name)
-		return nil
+	return newUser.Ensure(db)
+}
+
+func grantUserDbAccess(ctx context.Context, metadata map[string]string) error {
+	user := postgresql.Role{}
+	user.Name, _ = metadata["username"]
+	if user.Name == "" {
+		return fmt.Errorf("cannot grant user access to db: username is required")
 	}
-	if err := newUser.Create(db); err != nil {
-		return fmt.Errorf("error creating user: %w", err)
+	database := postgresql.DefaultDatabase()
+	database.Name, _ = metadata["databaseName"]
+	if database.Name == "" {
+		return fmt.Errorf("cannot grant user access to db: database name is required")
 	}
-	return nil
+
+	db, err := getDb(ctx)
+	if err != nil {
+		return fmt.Errorf("error connecting to postgres: %w", err)
+	}
+	defer db.Close()
+
+	if err := database.Read(db); err != nil {
+		return fmt.Errorf("unable to read database %q: %w", database.Name, err)
+	}
+
+	newRoleGrant := postgresql.RoleGrant{
+		Member: user.Name,
+		Target: database.Owner,
+	}
+	return newRoleGrant.Ensure(db)
+}
+
+func getDb(ctx context.Context) (*sql.DB, error) {
+	connUrl, err := getConnectionUrl(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving postgres connection url: %w", err)
+	}
+
+	return sql.Open("postgres", connUrl)
 }
 
 func getConnectionUrl(ctx context.Context) (string, error) {
