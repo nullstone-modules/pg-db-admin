@@ -64,13 +64,8 @@ WHERE pg_get_userbyid(member) = $1 AND pg_get_userbyid(roleid) = $2`
 	var member string
 	var target string
 	var withAdminOption bool
-	values := []interface{}{
-		&member,
-		&target,
-		&withAdminOption,
-	}
 	row := db.QueryRow(sq, g.Member, g.Target)
-	if err := row.Scan(&values); err != nil {
+	if err := row.Scan(&member, &target, &withAdminOption); err != nil {
 		return err
 	}
 	g.Member = member
