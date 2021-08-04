@@ -51,12 +51,7 @@ func createDatabase(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("cannot create database: owner is required")
 	}
 
-	connUrl, err := getConnectionUrl(ctx)
-	if err != nil {
-		return fmt.Errorf("error retrieving postgres connection url: %w", err)
-	}
-
-	db, err := sql.Open("postgres", connUrl)
+	db, err := getDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
@@ -90,12 +85,7 @@ func createUser(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("cannot create user: password is required")
 	}
 
-	connUrl, err := getConnectionUrl(ctx)
-	if err != nil {
-		return fmt.Errorf("error retrieving postgres connection url: %w", err)
-	}
-
-	db, err := sql.Open("postgres", connUrl)
+	db, err := getDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
@@ -111,6 +101,15 @@ func createUser(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("error creating user: %w", err)
 	}
 	return nil
+}
+
+func getDb(ctx context.Context) (*sql.DB, error) {
+	connUrl, err := getConnectionUrl(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving postgres connection url: %w", err)
+	}
+
+	return sql.Open("postgres", connUrl)
 }
 
 func getConnectionUrl(ctx context.Context) (string, error) {
