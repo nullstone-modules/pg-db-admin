@@ -1,9 +1,11 @@
 package postgresql
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"github.com/lib/pq"
+	"log"
 )
 
 type Role struct {
@@ -11,21 +13,36 @@ type Role struct {
 	Password string
 }
 
-func (r Role) Create(db *sql.DB) error {
-	sq := `SELECT 1 FROM pg_roles WHERE rolname = $1`
-	row := db.QueryRow(sq, r.Name)
-	var result int
-	if err := row.Scan(&result); err == sql.ErrNoRows {
-		fmt.Printf("creating role %q\n", r.Name)
-		// Role does not exist yet, create
-		sql := fmt.Sprintf(`CREATE USER %s WITH PASSWORD %s`, pq.QuoteIdentifier(r.Name), pq.QuoteLiteral(r.Password))
-		if _, err := db.Exec(sql); err != nil {
-			return fmt.Errorf("error creating user %q: %w", r.Name, err)
-		}
+func (r Role) Ensure(db *sql.DB) error {
+	if exists, err := r.Exists(db); exists {
+		log.Printf("role %q already exists\n", r.Name)
+		return nil
 	} else if err != nil {
-		return fmt.Errorf("error searching for existing role: %w", err)
+		return fmt.Errorf("error checking for role %q: %w", r.Name, err)
+	}
+	if err := r.Create(db); err != nil {
+		return fmt.Errorf("error creating role %q: %w", r.Name, err)
 	}
 	return nil
+}
+
+func (r Role) Create(db *sql.DB) error {
+	fmt.Printf("creating role %q\n", r.Name)
+	sq := r.generateCreateSql()
+	if _, err := db.Exec(sq); err != nil {
+		return fmt.Errorf("error creating user %q: %w", r.Name, err)
+	}
+	return nil
+}
+
+func (r Role) generateCreateSql() string {
+	b := bytes.NewBufferString("CREATE ROLE ")
+	fmt.Fprint(b, pq.QuoteIdentifier(r.Name))
+	if r.Password != "" {
+		fmt.Fprint(b, " WITH PASSWORD ")
+		fmt.Fprint(b, pq.QuoteLiteral(r.Password))
+	}
+	return b.String()
 }
 
 func (r Role) Exists(db *sql.DB) (bool, error) {
@@ -41,7 +58,7 @@ func (r Role) Exists(db *sql.DB) (bool, error) {
 
 func (r Role) Read(db *sql.DB) error {
 	var name string
-	row := db.QueryRow( `SELECT rolname from pg_roles WHERE rolname = $1`, r.Name)
+	row := db.QueryRow(`SELECT rolname from pg_roles WHERE rolname = $1`, r.Name)
 	if err := row.Scan(&name); err != nil {
 		return err
 	}

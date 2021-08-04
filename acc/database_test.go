@@ -20,8 +20,8 @@ func TestDatabase(t *testing.T) {
 	require.NoError(t, err, "calc db info")
 
 	database := postgresql.Database{
-		Name:             "test-database",
-		Owner:            "test-user",
+		Name:  "test-database",
+		Owner: "test-user",
 	}
 	require.NoError(t, database.Create(db, *dbInfo), "unexpected error")
 
