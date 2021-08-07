@@ -49,7 +49,7 @@ func ensureDatabase(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("cannot create database: databaseName is required")
 	}
 
-	db, err := getDb(ctx)
+	db, err := getMaintenanceDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
@@ -81,7 +81,7 @@ func ensureUser(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("cannot create user: password is required")
 	}
 
-	db, err := getDb(ctx)
+	db, err := getMaintenanceDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
@@ -102,7 +102,7 @@ func grantUserDbAccess(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("cannot grant user access to db: database name is required")
 	}
 
-	db, err := getDb(ctx)
+	db, err := getMaintenanceDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
@@ -119,7 +119,7 @@ func grantUserDbAccess(ctx context.Context, metadata map[string]string) error {
 	return newRoleGrant.Ensure(db)
 }
 
-func getDb(ctx context.Context) (*sql.DB, error) {
+func getMaintenanceDb(ctx context.Context) (*sql.DB, error) {
 	connUrl, err := getConnectionUrl(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving postgres connection url: %w", err)
