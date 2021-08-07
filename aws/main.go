@@ -8,8 +8,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/lib/pq"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
+	"net/url"
 	"os"
+	"strings"
 )
 
 const (
@@ -48,8 +51,9 @@ func ensureDatabase(ctx context.Context, metadata map[string]string) error {
 	if newDatabase.Name == "" {
 		return fmt.Errorf("cannot create database: databaseName is required")
 	}
+	newDatabase.Owner = newDatabase.Name
 
-	db, err := getDb(ctx)
+	db, err := getMaintenanceDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
@@ -61,11 +65,9 @@ func ensureDatabase(ctx context.Context, metadata map[string]string) error {
 	}
 
 	// Create a role with the same name as the database to give ownership
-	ownerRole := postgresql.Role{Name: newDatabase.Name}
-	if err := ownerRole.Ensure(db); err != nil {
+	if err := (postgresql.Role{Name: newDatabase.Name}).Ensure(db); err != nil {
 		return fmt.Errorf("error ensuring database owner role: %w", err)
 	}
-	newDatabase.Owner = ownerRole.Name
 
 	return newDatabase.Ensure(db, *dbInfo)
 }
@@ -81,7 +83,7 @@ func ensureUser(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("cannot create user: password is required")
 	}
 
-	db, err := getDb(ctx)
+	db, err := getMaintenanceDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
@@ -102,7 +104,7 @@ func grantUserDbAccess(ctx context.Context, metadata map[string]string) error {
 		return fmt.Errorf("cannot grant user access to db: database name is required")
 	}
 
-	db, err := getDb(ctx)
+	db, err := getMaintenanceDb(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to postgres: %w", err)
 	}
@@ -116,16 +118,55 @@ func grantUserDbAccess(ctx context.Context, metadata map[string]string) error {
 		Member: user.Name,
 		Target: database.Owner,
 	}
-	return newRoleGrant.Ensure(db)
+	if err := newRoleGrant.Ensure(db); err != nil {
+		return fmt.Errorf("error granting")
+	}
+
+	return grantAllPrivileges(ctx, database, user)
 }
 
-func getDb(ctx context.Context) (*sql.DB, error) {
+func grantAllPrivileges(ctx context.Context, database postgresql.Database, user postgresql.Role) error {
+	db, err := getAppDb(ctx, database.Name)
+	if err != nil {
+		return fmt.Errorf("error connecting to postgres: %w", err)
+	}
+	defer db.Close()
+
+	sq := strings.Join([]string{
+		// CREATE | USAGE
+		fmt.Sprintf(`GRANT ALL PRIVILEGES ON SCHEMA public TO %q;`, pq.QuoteIdentifier(user.Name)),
+		// CREATE | CONNECT | TEMPORARY | TEMP
+		fmt.Sprintf(`GRANT ALL PRIVILEGES ON DATABASE %q TO %q;`, pq.QuoteIdentifier(database.Name), pq.QuoteIdentifier(user.Name)),
+	}, " ")
+
+	if _, err := db.Exec(sq); err != nil {
+		return fmt.Errorf("error granting privileges: %w", err)
+	}
+	return nil
+}
+
+func getMaintenanceDb(ctx context.Context) (*sql.DB, error) {
 	connUrl, err := getConnectionUrl(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving postgres connection url: %w", err)
 	}
 
 	return sql.Open("postgres", connUrl)
+}
+
+func getAppDb(ctx context.Context, databaseName string) (*sql.DB, error) {
+	connUrl, err := getConnectionUrl(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving postgres connection url: %w", err)
+	}
+
+	u, err := url.Parse(connUrl)
+	if err != nil {
+		return nil, fmt.Errorf("invalid connection url %q: %w", connUrl, err)
+	}
+	u.Path = fmt.Sprintf("/%s", url.PathEscape(databaseName))
+
+	return sql.Open("postgres", u.String())
 }
 
 func getConnectionUrl(ctx context.Context) (string, error) {
