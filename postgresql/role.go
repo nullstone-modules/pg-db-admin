@@ -37,9 +37,9 @@ func (r Role) Create(db *sql.DB) error {
 
 func (r Role) generateCreateSql() string {
 	b := bytes.NewBufferString("CREATE ROLE ")
-	fmt.Fprint(b, pq.QuoteIdentifier(r.Name))
+	fmt.Fprint(b, pq.QuoteIdentifier(r.Name), " WITH LOGIN")
 	if r.Password != "" {
-		fmt.Fprint(b, " WITH PASSWORD ")
+		fmt.Fprint(b, " PASSWORD ")
 		fmt.Fprint(b, pq.QuoteLiteral(r.Password))
 	}
 	return b.String()

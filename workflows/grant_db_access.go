@@ -9,23 +9,15 @@ import (
 	"strings"
 )
 
-func GrantDbAccess(connUrl string, user postgresql.Role, database postgresql.Database) error {
+func GrantDbAccess(db *sql.DB, appDb *sql.DB, user postgresql.Role, database postgresql.Database) error {
 	log.Printf("Granting user %q db access to %q\n", user.Name, database.Name)
-
-	if err := grantRole(connUrl, user, database); err != nil {
+	if err := grantRole(db, user, database); err != nil {
 		return err
 	}
-
-	return grantAllPrivileges(connUrl, user, database)
+	return grantAllPrivileges(appDb, user, database)
 }
 
-func grantRole(connUrl string, user postgresql.Role, database postgresql.Database) error {
-	db, err := sql.Open("postgres", connUrl)
-	if err != nil {
-		return fmt.Errorf("error connecting to postgres: %w", err)
-	}
-	defer db.Close()
-
+func grantRole(db *sql.DB, user postgresql.Role, database postgresql.Database) error {
 	if err := database.Read(db); err != nil {
 		return fmt.Errorf("unable to read database %q: %w", database.Name, err)
 	}
@@ -40,13 +32,7 @@ func grantRole(connUrl string, user postgresql.Role, database postgresql.Databas
 	return nil
 }
 
-func grantAllPrivileges(connUrl string, user postgresql.Role, database postgresql.Database) error {
-	db, err := getAppDb(connUrl, database.Name)
-	if err != nil {
-		return fmt.Errorf("error connecting to postgres: %w", err)
-	}
-	defer db.Close()
-
+func grantAllPrivileges(db *sql.DB, user postgresql.Role, database postgresql.Database) error {
 	sq := strings.Join([]string{
 		// CREATE | USAGE
 		fmt.Sprintf(`GRANT ALL PRIVILEGES ON SCHEMA public TO %s;`, pq.QuoteIdentifier(user.Name)),
