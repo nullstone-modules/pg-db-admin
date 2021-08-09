@@ -3,7 +3,6 @@ package postgresql
 import (
 	"bytes"
 	"database/sql"
-	"errors"
 	"fmt"
 	"github.com/go-multierror/multierror"
 	"github.com/lib/pq"
