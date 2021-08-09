@@ -10,7 +10,7 @@ import (
 )
 
 func GrantDbAccess(connUrl string, user postgresql.Role, database postgresql.Database) error {
-	log.Printf("granting user %q db access to %q\n", user.Name, database.Name)
+	log.Printf("Granting user %q db access to %q\n", user.Name, database.Name)
 
 	if err := grantRole(connUrl, user, database); err != nil {
 		return err
@@ -49,9 +49,9 @@ func grantAllPrivileges(connUrl string, user postgresql.Role, database postgresq
 
 	sq := strings.Join([]string{
 		// CREATE | USAGE
-		fmt.Sprintf(`GRANT ALL PRIVILEGES ON SCHEMA public TO %q;`, pq.QuoteIdentifier(user.Name)),
+		fmt.Sprintf(`GRANT ALL PRIVILEGES ON SCHEMA public TO %s;`, pq.QuoteIdentifier(user.Name)),
 		// CREATE | CONNECT | TEMPORARY | TEMP
-		fmt.Sprintf(`GRANT ALL PRIVILEGES ON DATABASE %q TO %q;`, pq.QuoteIdentifier(database.Name), pq.QuoteIdentifier(user.Name)),
+		fmt.Sprintf(`GRANT ALL PRIVILEGES ON DATABASE %s TO %s;`, pq.QuoteIdentifier(database.Name), pq.QuoteIdentifier(user.Name)),
 	}, " ")
 
 	if _, err := db.Exec(sq); err != nil {
