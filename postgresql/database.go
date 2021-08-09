@@ -3,6 +3,7 @@ package postgresql
 import (
 	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/go-multierror/multierror"
 	"github.com/lib/pq"
@@ -11,22 +12,21 @@ import (
 )
 
 type Database struct {
-	Name             string
-	Owner            string
-	Template         string
-	Encoding         string
-	Collation        string
-	LcCtype          string
-	TablespaceName   string
-	ConnectionLimit  int
-	IsTemplate       bool
-	AllowConnections bool
+	Name               string
+	Owner              string
+	Template           string
+	Encoding           string
+	Collation          string
+	LcCtype            string
+	TablespaceName     string
+	ConnectionLimit    int
+	IsTemplate         bool
+	DisableConnections bool
 }
 
 func DefaultDatabase() Database {
 	return Database{
-		ConnectionLimit:  -1,
-		AllowConnections: true,
+		ConnectionLimit: -1,
 	}
 }
 
@@ -103,7 +103,7 @@ func (d Database) generateCreateSql(features Features) string {
 	}
 
 	if features.IsSupported(FeatureDBAllowConnections) {
-		fmt.Fprint(b, " ALLOW_CONNECTIONS ", d.AllowConnections)
+		fmt.Fprintf(b, " ALLOW_CONNECTIONS %t", !d.DisableConnections)
 	}
 
 	fmt.Fprint(b, " CONNECTION LIMIT ", d.ConnectionLimit)
