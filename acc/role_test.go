@@ -16,11 +16,11 @@ func TestRole(t *testing.T) {
 	defer db.Close()
 
 	role := postgresql.Role{
-		Name:     "test-user",
-		Password: "test-password",
+		Name:     "role-test-user",
+		Password: "role-test-password",
 	}
 	require.NoError(t, role.Create(db), "unexpected error")
 
-	find := &postgresql.Role{Name: "test-user"}
+	find := &postgresql.Role{Name: "role-test-user"}
 	require.NoError(t, find.Read(db), "read user")
 }

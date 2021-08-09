@@ -15,7 +15,7 @@ type Role struct {
 
 func (r Role) Ensure(db *sql.DB) error {
 	if exists, err := r.Exists(db); exists {
-		log.Printf("role %q already exists\n", r.Name)
+		log.Printf("Role %q already exists\n", r.Name)
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("error checking for role %q: %w", r.Name, err)
@@ -27,7 +27,7 @@ func (r Role) Ensure(db *sql.DB) error {
 }
 
 func (r Role) Create(db *sql.DB) error {
-	fmt.Printf("creating role %q\n", r.Name)
+	fmt.Printf("Creating role %q\n", r.Name)
 	sq := r.generateCreateSql()
 	if _, err := db.Exec(sq); err != nil {
 		return fmt.Errorf("error creating user %q: %w", r.Name, err)
@@ -37,9 +37,9 @@ func (r Role) Create(db *sql.DB) error {
 
 func (r Role) generateCreateSql() string {
 	b := bytes.NewBufferString("CREATE ROLE ")
-	fmt.Fprint(b, pq.QuoteIdentifier(r.Name))
+	fmt.Fprint(b, pq.QuoteIdentifier(r.Name), " WITH LOGIN")
 	if r.Password != "" {
-		fmt.Fprint(b, " WITH PASSWORD ")
+		fmt.Fprint(b, " PASSWORD ")
 		fmt.Fprint(b, pq.QuoteLiteral(r.Password))
 	}
 	return b.String()

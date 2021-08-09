@@ -11,23 +11,16 @@ import (
 )
 
 type Database struct {
-	Name             string
-	Owner            string
-	Template         string
-	Encoding         string
-	Collation        string
-	LcCtype          string
-	TablespaceName   string
-	ConnectionLimit  int
-	IsTemplate       bool
-	AllowConnections bool
-}
-
-func DefaultDatabase() Database {
-	return Database{
-		ConnectionLimit:  -1,
-		AllowConnections: true,
-	}
+	Name               string
+	Owner              string
+	Template           string
+	Encoding           string
+	Collation          string
+	LcCtype            string
+	TablespaceName     string
+	ConnectionLimit    int
+	IsTemplate         bool
+	DisableConnections bool
 }
 
 func (d Database) Create(db *sql.DB, info DbInfo) error {
@@ -41,7 +34,7 @@ func (d Database) Create(db *sql.DB, info DbInfo) error {
 	}
 
 	sq := d.generateCreateSql(info.SupportedFeatures)
-	fmt.Printf("Creating database %q, assigning owner to service user %q\n", d.Name, d.Owner)
+	log.Printf("Creating database %q, assigning owner to service user %q\n", d.Name, d.Owner)
 	errs := make([]error, 0)
 	if _, err := db.Exec(sq); err != nil {
 		errs = append(errs, fmt.Errorf("error creating database %q: %w", d.Name, err))
@@ -103,10 +96,12 @@ func (d Database) generateCreateSql(features Features) string {
 	}
 
 	if features.IsSupported(FeatureDBAllowConnections) {
-		fmt.Fprint(b, " ALLOW_CONNECTIONS ", d.AllowConnections)
+		fmt.Fprintf(b, " ALLOW_CONNECTIONS %t", !d.DisableConnections)
 	}
 
-	fmt.Fprint(b, " CONNECTION LIMIT ", d.ConnectionLimit)
+	if d.ConnectionLimit > 0 {
+		fmt.Fprint(b, " CONNECTION LIMIT ", d.ConnectionLimit)
+	}
 
 	if features.IsSupported(FeatureDBIsTemplate) {
 		fmt.Fprint(b, " IS_TEMPLATE ", d.IsTemplate)
