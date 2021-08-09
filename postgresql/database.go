@@ -23,12 +23,6 @@ type Database struct {
 	DisableConnections bool
 }
 
-func DefaultDatabase() Database {
-	return Database{
-		ConnectionLimit: -1,
-	}
-}
-
 func (d Database) Create(db *sql.DB, info DbInfo) error {
 	var grant Revoker = NoopRevoker{}
 	if d.Owner != "" && !info.IsSuperuser {
@@ -105,7 +99,9 @@ func (d Database) generateCreateSql(features Features) string {
 		fmt.Fprintf(b, " ALLOW_CONNECTIONS %t", !d.DisableConnections)
 	}
 
-	fmt.Fprint(b, " CONNECTION LIMIT ", d.ConnectionLimit)
+	if d.ConnectionLimit > 0 {
+		fmt.Fprint(b, " CONNECTION LIMIT ", d.ConnectionLimit)
+	}
 
 	if features.IsSupported(FeatureDBIsTemplate) {
 		fmt.Fprint(b, " IS_TEMPLATE ", d.IsTemplate)
