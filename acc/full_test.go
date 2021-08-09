@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,9 +17,9 @@ import (
 
 // TestFull tests the entire workflow of create-database, create-user, create-db-access
 func TestFull(t *testing.T) {
-	//if os.Getenv("ACC") != "1" {
-	//	t.Skip("Set ACC=1 to run e2e tests")
-	//}
+	if os.Getenv("ACC") != "1" {
+		t.Skip("Set ACC=1 to run e2e tests")
+	}
 
 	connUrl := "postgres://pda:pda@localhost:8432/postgres?sslmode=disable"
 	db, err := sql.Open("postgres", connUrl)
