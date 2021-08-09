@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/lib/pq"
+	"log"
 )
 
 // GrantRoleMembership grants role membership of the target 'role' to the 'currentUser'
@@ -24,7 +25,7 @@ func GrantRoleMembership(db *sql.DB, role string, currentUser string) (*TempGran
 		return nil, nil
 	}
 
-	fmt.Printf("Granting %q temporary access to role %q\n", currentUser, role)
+	log.Printf("Granting %q temporary access to role %q\n", currentUser, role)
 
 	// Take a lock on db currentUser to avoid multiple database creation at the same time
 	// It can fail if they grant the same owner to current at the same time as it's not done in transaction.
@@ -65,11 +66,9 @@ type Revoker interface {
 }
 
 type NoopRevoker struct {
-	Tx *sql.Tx
 }
 
 func (t NoopRevoker) Revoke(db *sql.DB) error {
-	defer t.Tx.Rollback()
 	return nil
 }
 
@@ -96,7 +95,7 @@ func (t TempGrant) Revoke(db *sql.DB) error {
 		return nil
 	}
 
-	fmt.Printf("Revoking %q temporary access to role %q\n", t.CurrentUser, t.Role)
+	log.Printf("Revoking %q temporary access to role %q\n", t.CurrentUser, t.Role)
 
 	sql := fmt.Sprintf("REVOKE %s FROM %s", pq.QuoteIdentifier(t.Role), pq.QuoteIdentifier(t.CurrentUser))
 	if _, err := db.Exec(sql); err != nil {

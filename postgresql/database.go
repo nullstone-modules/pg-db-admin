@@ -41,7 +41,7 @@ func (d Database) Create(db *sql.DB, info DbInfo) error {
 	}
 
 	sq := d.generateCreateSql(info.SupportedFeatures)
-	fmt.Printf("Creating database %q, assigning owner to service user %q\n", d.Name, d.Owner)
+	log.Printf("Creating database %q, assigning owner to service user %q\n", d.Name, d.Owner)
 	errs := make([]error, 0)
 	if _, err := db.Exec(sq); err != nil {
 		errs = append(errs, fmt.Errorf("error creating database %q: %w", d.Name, err))
