@@ -39,12 +39,12 @@ variable "network" {
   description = "Network configuration"
   type = object({
     vpc_id : string
-    security_group_ids : list(string)
+    pg_security_group_id : string
     subnet_ids = list(string)
   })
   default = {
-    vpc_id             = ""
-    security_group_ids = []
-    subnet_ids         = []
+    vpc_id               = ""
+    pg_security_group_id = ""
+    subnet_ids           = []
   }
 }

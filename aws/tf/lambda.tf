@@ -4,10 +4,10 @@ resource "aws_lambda_function" "db_admin" {
   role             = aws_iam_role.db_admin.arn
   runtime          = "go1.x"
   handler          = "pg-db-admin"
-  filename          = "${path.module}/files/pg-db-admin.zip"
+  filename         = "${path.module}/files/pg-db-admin.zip"
   source_code_hash = filebase64sha256("${path.module}/files/pg-db-admin.zip")
   // This can take ~5s to create a db sometimes
-  timeout          = 10
+  timeout = 10
 
   environment {
     variables = {
@@ -16,7 +16,7 @@ resource "aws_lambda_function" "db_admin" {
   }
 
   vpc_config {
-    security_group_ids = concat([aws_security_group.db_admin.id], var.network.security_group_ids)
+    security_group_ids = [aws_security_group.db_admin.id]
     subnet_ids         = var.network.subnet_ids
   }
 }
