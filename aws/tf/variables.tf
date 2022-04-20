@@ -45,6 +45,7 @@ variable "network" {
   default = {
     vpc_id               = ""
     pg_security_group_id = ""
+    security_group_ids   = []
     subnet_ids           = []
   }
 }
