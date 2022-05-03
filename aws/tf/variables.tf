@@ -40,6 +40,7 @@ variable "network" {
   type = object({
     vpc_id : string
     pg_security_group_id : string
+    security_group_ids : list(string)
     subnet_ids = list(string)
   })
   default = {
