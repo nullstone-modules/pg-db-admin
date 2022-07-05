@@ -74,6 +74,7 @@ func HandleRequest(ctx context.Context, event AdminEvent) error {
 		if database.Name == "" {
 			return fmt.Errorf("cannot grant user access to db: database name is required")
 		}
+		database.Owner = database.Name
 
 		appDb, err := getAppDb(connUrl, database.Name)
 		if err != nil {
