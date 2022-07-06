@@ -16,6 +16,13 @@ type Role struct {
 func (r Role) Ensure(db *sql.DB) error {
 	if exists, err := r.Exists(db); exists {
 		log.Printf("Role %q already exists\n", r.Name)
+		if r.Password != "" {
+			log.Printf("Setting password")
+			if err := r.setPassword(db); err != nil {
+				log.Printf("Password set")
+				return err
+			}
+		}
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("error checking for role %q: %w", r.Name, err)
@@ -61,6 +68,14 @@ func (r Role) Read(db *sql.DB) error {
 	row := db.QueryRow(`SELECT rolname from pg_roles WHERE rolname = $1`, r.Name)
 	if err := row.Scan(&name); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (r Role) setPassword(db *sql.DB) error {
+	_, err := db.Exec(fmt.Sprintf(`ALTER ROLE %s WITH PASSWORD %s`, pq.QuoteIdentifier(r.Name), pq.QuoteLiteral(r.Password)))
+	if err != nil {
+		return fmt.Errorf("error setting password: %w", err)
 	}
 	return nil
 }
