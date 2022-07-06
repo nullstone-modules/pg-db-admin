@@ -28,11 +28,13 @@ func GrantDbAndSchemaPrivileges(db *sql.DB, user Role, database Database) error 
 //   Since grantRole adds role membership to database owner role, this effectively gives any new users access to objects
 func GrantDefaultPrivileges(info *DbInfo, db *sql.DB, user Role, database Database) error {
 	var grant Revoker = NoopRevoker{}
+	var tempErr error
 	if !info.IsSuperuser {
-		var err error
-		grant, err = GrantRoleMembership(db, user.Name, info.CurrentUser)
-		if err != nil {
-			return fmt.Errorf("error granting temporary membership: %w", err)
+		grant, tempErr = GrantRoleMembership(db, user.Name, info.CurrentUser)
+		// We only care about this error if the privilege sql didn't work
+		if tempErr != nil {
+			// Nothing to revoke if there was an error
+			grant = NoopRevoker{}
 		}
 	}
 
@@ -48,10 +50,13 @@ func GrantDefaultPrivileges(info *DbInfo, db *sql.DB, user Role, database Databa
 	}, " ")
 	errs := make([]error, 0)
 	if _, err := db.Exec(sq); err != nil {
+		if tempErr != nil {
+			errs = append(errs, fmt.Errorf("error granting temporary membership: %w", tempErr))
+		}
 		errs = append(errs, fmt.Errorf("error altering default privileges: %w", err))
 	}
-	if err := grant.Revoke(db); err != nil {
-		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", err))
+	if revokeErr := grant.Revoke(db); revokeErr != nil {
+		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", revokeErr))
 	}
 	if len(errs) > 0 {
 		return multierror.New(errs)
