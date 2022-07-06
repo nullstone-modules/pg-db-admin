@@ -8,13 +8,16 @@ import (
 )
 
 func GrantDbAccess(db *sql.DB, appDb *sql.DB, user postgresql.Role, database postgresql.Database) error {
-	log.Println("Calculating current db info")
+	log.Printf("Granting db access to user %q on database %q\n", user.Name, database.Name)
+
 	dbInfo, err := postgresql.CalcDbConnectionInfo(db)
 	if err != nil {
 		return fmt.Errorf("error introspecting postgres: %w", err)
 	}
+	if err := database.Read(db); err != nil {
+		return fmt.Errorf("unable to read database %q: %w", database.Name, err)
+	}
 
-	log.Printf("Granting user %q db access to %q\n", user.Name, database.Name)
 	if err := grantRole(db, user, database); err != nil {
 		return err
 	}
@@ -26,10 +29,7 @@ func GrantDbAccess(db *sql.DB, appDb *sql.DB, user postgresql.Role, database pos
 
 // grantRole adds user as a member of the database owner role
 func grantRole(db *sql.DB, user postgresql.Role, database postgresql.Database) error {
-	if err := database.Read(db); err != nil {
-		return fmt.Errorf("unable to read database %q: %w", database.Name, err)
-	}
-
+	log.Printf("Granting %q membership to %q", user.Name, database.Owner)
 	newRoleGrant := postgresql.RoleGrant{
 		Member: user.Name,
 		Target: database.Owner,
