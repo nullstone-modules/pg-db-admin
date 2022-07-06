@@ -17,11 +17,11 @@ func (r Role) Ensure(db *sql.DB) error {
 	if exists, err := r.Exists(db); exists {
 		log.Printf("Role %q already exists\n", r.Name)
 		if r.Password != "" {
-			log.Printf("Setting password")
+			log.Printf("Setting password for %q\n", r.Name)
 			if err := r.setPassword(db); err != nil {
-				log.Printf("Password set")
 				return err
 			}
+			log.Printf("Password set for %q\n", r.Name)
 		}
 		return nil
 	} else if err != nil {
