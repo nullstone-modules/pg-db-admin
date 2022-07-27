@@ -3,7 +3,7 @@ NAME := pg-db-admin
 .PHONY: tools build
 
 tools:
-	cd ~ && go get -u github.com/aws/aws-lambda-go/cmd/build-lambda-zip && cd -
+	go install github.com/aws/aws-lambda-go/cmd/build-lambda-zip@latest
 
 build:
 	mkdir -p ./aws/tf/files
