@@ -14,15 +14,15 @@ import (
 // a member of this role.
 func GrantRoleMembership(db *sql.DB, role string, currentUser string) (Revoker, error) {
 	if currentUser == role {
-		return NoopRevoker{}, nil
+		return nil, nil
 	}
 
 	isMember, err := isMemberOfRole(db, currentUser, role)
 	if err != nil {
-		return  NoopRevoker{}, err
+		return  nil, err
 	}
 	if isMember {
-		return NoopRevoker{}, nil
+		return nil, nil
 	}
 
 	log.Printf("Granting %q temporary access to role %q\n", currentUser, role)
@@ -31,7 +31,7 @@ func GrantRoleMembership(db *sql.DB, role string, currentUser string) (Revoker, 
 	// It can fail if they grant the same owner to current at the same time as it's not done in transaction.
 	lockTxn, err := db.Begin()
 	if err := pgLockRole(lockTxn, currentUser); err != nil {
-		return NoopRevoker{}, err
+		return nil, err
 	}
 
 	sql := fmt.Sprintf("GRANT %s TO %s", pq.QuoteIdentifier(role), pq.QuoteIdentifier(currentUser))

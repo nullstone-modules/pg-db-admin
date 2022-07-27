@@ -51,8 +51,10 @@ func GrantDefaultPrivileges(info *DbInfo, db *sql.DB, user Role, database Databa
 		}
 		errs = append(errs, fmt.Errorf("error altering default privileges: %w", err))
 	}
-	if revokeErr := grant.Revoke(db); revokeErr != nil {
-		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", revokeErr))
+	if grant != nil {
+		if revokeErr := grant.Revoke(db); revokeErr != nil {
+			errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", revokeErr))
+		}
 	}
 	if len(errs) > 0 {
 		return multierror.New(errs)
