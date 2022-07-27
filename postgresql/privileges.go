@@ -33,10 +33,6 @@ func GrantDefaultPrivileges(info *DbInfo, db *sql.DB, user Role, database Databa
 		grant, tempErr = GrantRoleMembership(db, user.Name, info.CurrentUser)
 		// We only care about this error if the privilege sql didn't work down below
 	}
-	if grant == nil {
-		// Nothing to revoke if there was an error
-		grant = NoopRevoker{}
-	}
 
 	quotedUserName := pq.QuoteIdentifier(user.Name)
 	quotedDbOwner := pq.QuoteIdentifier(database.Owner)

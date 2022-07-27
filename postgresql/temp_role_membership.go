@@ -12,17 +12,17 @@ import (
 // For instance, when using AWS RDS, user is not given superuser
 // It returns false if the grant is not needed because the user is already
 // a member of this role.
-func GrantRoleMembership(db *sql.DB, role string, currentUser string) (*TempGrant, error) {
+func GrantRoleMembership(db *sql.DB, role string, currentUser string) (Revoker, error) {
 	if currentUser == role {
-		return nil, nil
+		return NoopRevoker{}, nil
 	}
 
 	isMember, err := isMemberOfRole(db, currentUser, role)
 	if err != nil {
-		return nil, err
+		return  NoopRevoker{}, err
 	}
 	if isMember {
-		return nil, nil
+		return NoopRevoker{}, nil
 	}
 
 	log.Printf("Granting %q temporary access to role %q\n", currentUser, role)
@@ -31,7 +31,7 @@ func GrantRoleMembership(db *sql.DB, role string, currentUser string) (*TempGran
 	// It can fail if they grant the same owner to current at the same time as it's not done in transaction.
 	lockTxn, err := db.Begin()
 	if err := pgLockRole(lockTxn, currentUser); err != nil {
-		return nil, err
+		return NoopRevoker{}, err
 	}
 
 	sql := fmt.Sprintf("GRANT %s TO %s", pq.QuoteIdentifier(role), pq.QuoteIdentifier(currentUser))
