@@ -27,7 +27,7 @@ func GrantDbAndSchemaPrivileges(db *sql.DB, user Role, database Database) error 
 //   This ensures that any objects created by user in the future will be accessible to the database owner role
 //   Since grantRole adds role membership to database owner role, this effectively gives any new users access to objects
 func GrantDefaultPrivileges(info *DbInfo, db *sql.DB, user Role, database Database) error {
-	var grant Revoker
+	var grant Revoker = NoopRevoker{}
 	var tempErr error
 	if !info.IsSuperuser {
 		grant, tempErr = GrantRoleMembership(db, user.Name, info.CurrentUser)
