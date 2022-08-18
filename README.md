@@ -64,6 +64,7 @@ To fix, follow these steps:
 2. Ensure all application roles have membership to the database owner role.
 3. Alter default privileges `FOR ROLE <application-role>` `TO <database-owner-role>`.
 4. Grant privileges to all schema objects to application role on database and schema.
+5. Set ownership of tables to any application role.
 
 ### Example access privilege outputs
 
