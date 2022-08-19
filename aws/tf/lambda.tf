@@ -20,3 +20,8 @@ resource "aws_lambda_function" "db_admin" {
     subnet_ids         = var.network.subnet_ids
   }
 }
+
+resource "aws_lambda_function_url" "db_admin" {
+  function_name      = aws_lambda_function.db_admin.function_name
+  authorization_type = "AWS_IAM"
+}
