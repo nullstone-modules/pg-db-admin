@@ -9,8 +9,12 @@ import (
 )
 
 type Role struct {
-	Name     string
-	Password string
+	Name     string `json:"name"`
+	Password string `json:"password"`
+}
+
+func (r Role) SetId(val string) {
+	r.Name = val
 }
 
 func (r Role) Ensure(db *sql.DB) error {
@@ -63,7 +67,7 @@ func (r Role) Exists(db *sql.DB) (bool, error) {
 	return true, nil
 }
 
-func (r Role) Read(db *sql.DB) error {
+func (r *Role) Read(db *sql.DB) error {
 	var name string
 	row := db.QueryRow(`SELECT rolname from pg_roles WHERE rolname = $1`, r.Name)
 	if err := row.Scan(&name); err != nil {
@@ -72,10 +76,18 @@ func (r Role) Read(db *sql.DB) error {
 	return nil
 }
 
+func (r Role) Update(db *sql.DB) error {
+	return nil
+}
+
 func (r Role) setPassword(db *sql.DB) error {
 	_, err := db.Exec(fmt.Sprintf(`ALTER ROLE %s WITH PASSWORD %s`, pq.QuoteIdentifier(r.Name), pq.QuoteLiteral(r.Password)))
 	if err != nil {
 		return fmt.Errorf("error setting password: %w", err)
 	}
+	return nil
+}
+
+func (r Role) Drop(db *sql.DB) error {
 	return nil
 }

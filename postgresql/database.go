@@ -23,7 +23,16 @@ type Database struct {
 	DisableConnections bool   `json:"disableConnections"`
 }
 
-func (d Database) Create(db *sql.DB, info DbInfo) error {
+func (d Database) SetId(val string) {
+	d.Name = val
+}
+
+func (d Database) Create(db *sql.DB) error {
+	info, err := CalcDbConnectionInfo(db)
+	if err != nil {
+		return fmt.Errorf("error analyzing existing databases: %w", err)
+	}
+
 	var grant Revoker = NoopRevoker{}
 	if d.Owner != "" && !info.IsSuperuser {
 		var err error
@@ -110,14 +119,14 @@ func (d Database) generateCreateSql(features Features) string {
 	return b.String()
 }
 
-func (d Database) Ensure(db *sql.DB, info DbInfo) error {
+func (d Database) Ensure(db *sql.DB) error {
 	if exists, err := d.Exists(db); exists {
 		log.Printf("database %q already exists\n", d.Name)
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("error checking for database %q: %w", d.Name, err)
 	}
-	if err := d.Create(db, info); err != nil {
+	if err := d.Create(db); err != nil {
 		return fmt.Errorf("error creating database %q: %w", d.Name, err)
 	}
 	return nil

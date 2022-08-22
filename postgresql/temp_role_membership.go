@@ -19,7 +19,7 @@ func GrantRoleMembership(db *sql.DB, role string, currentUser string) (Revoker, 
 
 	isMember, err := isMemberOfRole(db, currentUser, role)
 	if err != nil {
-		return  nil, err
+		return nil, err
 	}
 	if isMember {
 		return nil, nil

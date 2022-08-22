@@ -39,4 +39,3 @@ func grantRole(db *sql.DB, user postgresql.Role, database postgresql.Database) e
 	}
 	return nil
 }
-
