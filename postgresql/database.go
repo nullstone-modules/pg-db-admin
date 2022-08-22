@@ -11,16 +11,16 @@ import (
 )
 
 type Database struct {
-	Name               string
-	Owner              string
-	Template           string
-	Encoding           string
-	Collation          string
-	LcCtype            string
-	TablespaceName     string
-	ConnectionLimit    int
-	IsTemplate         bool
-	DisableConnections bool
+	Name               string `json:"name"`
+	Owner              string `json:"owner"`
+	Template           string `json:"template"`
+	Encoding           string `json:"encoding"`
+	Collation          string `json:"collation"`
+	LcCtype            string `json:"lcCtype"`
+	TablespaceName     string `json:"tablespaceName"`
+	ConnectionLimit    int    `json:"connectionLimit"`
+	IsTemplate         bool   `json:"isTemplate"`
+	DisableConnections bool   `json:"disableConnections"`
 }
 
 func (d Database) Create(db *sql.DB, info DbInfo) error {
