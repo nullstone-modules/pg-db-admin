@@ -26,7 +26,12 @@ func GrantDbAndSchemaPrivileges(db *sql.DB, user Role, database Database) error 
 // GrantDefaultPrivileges configures default privileges for any objects created by the user
 //   This ensures that any objects created by user in the future will be accessible to the database owner role
 //   Since grantRole adds role membership to database owner role, this effectively gives any new users access to objects
-func GrantDefaultPrivileges(info *DbInfo, db *sql.DB, user Role, database Database) error {
+func GrantDefaultPrivileges(db *sql.DB, user Role, database Database) error {
+	info, err := CalcDbConnectionInfo(db)
+	if err != nil {
+		return fmt.Errorf("error analyzing database: %w", err)
+	}
+
 	var grant Revoker = NoopRevoker{}
 	var tempErr error
 	if !info.IsSuperuser {

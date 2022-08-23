@@ -13,8 +13,8 @@ type AdminEvent struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
-func handleAdminEvent(ctx context.Context, event AdminEvent) (any, error) {
-	db, err := sql.Open("postgres", dbBroker.ConnectionUrl())
+func handleAdminEvent(ctx context.Context, event AdminEvent, dbConnUrl string) (any, error) {
+	db, err := sql.Open("postgres", dbConnUrl)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to db: %w", err)
 	}
@@ -52,10 +52,11 @@ func handleAdminEvent(ctx context.Context, event AdminEvent) (any, error) {
 			return nil, fmt.Errorf("cannot grant user access to db: database name is required")
 		}
 
-		appDb, err := dbBroker.GetAppDb(database.Name)
+		appDb, err := postgresql.OpenDatabase(dbConnUrl, database.Name)
 		if err != nil {
 			return nil, fmt.Errorf("error connecting to app db %q: %w", database.Name, err)
 		}
+		defer appDb.Close()
 
 		return nil, workflows.GrantDbAccess(db, appDb, user, database)
 	default:

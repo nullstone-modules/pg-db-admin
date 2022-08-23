@@ -17,18 +17,18 @@ func TestDatabase(t *testing.T) {
 	db := createDb(t)
 	defer db.Close()
 
-	database := postgresql.Database{Name: "database-test-database"}
+	databases := postgresql.Databases{Db: db}
+	roles := postgresql.Roles{Db: db}
 
-	ownerRole := postgresql.Role{Name: database.Name}
-	require.NoError(t, ownerRole.Ensure(db), "error creating owner role")
-	database.Owner = ownerRole.Name
+	databaseName := "database-test-database"
 
-	dbInfo, err := postgresql.CalcDbConnectionInfo(db)
-	require.NoError(t, err, "calc db info")
+	ownerRole, err := roles.Ensure(postgresql.Role{Name: databaseName})
+	require.NoError(t, err, "error creating owner role")
 
-	require.NoError(t, database.Create(db, *dbInfo), "unexpected error")
+	_, err = databases.Create(postgresql.Database{Name: databaseName, Owner: ownerRole.Name})
+	require.NoError(t, err, "unexpected error")
 
-	find := &postgresql.Database{Name: "database-test-database"}
-	require.NoError(t, find.Read(db), "read database")
+	find, err := databases.Read(databaseName)
+	require.NoError(t, err, "read database")
 	assert.Equal(t, ownerRole.Name, find.Owner, "mismatched owner")
 }

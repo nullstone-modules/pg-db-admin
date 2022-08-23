@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/go-multierror/multierror"
 	"github.com/lib/pq"
+	"github.com/nullstone-io/go-rest-api"
 	"log"
 	"strings"
 )
@@ -23,41 +24,81 @@ type Database struct {
 	DisableConnections bool   `json:"disableConnections"`
 }
 
-func (d Database) SetId(val string) {
-	d.Name = val
+var _ rest.DataAccess[string, Database] = &Databases{}
+
+type Databases struct {
+	Db *sql.DB
 }
 
-func (d Database) Create(db *sql.DB) error {
-	info, err := CalcDbConnectionInfo(db)
+func (d *Databases) ParseKey(val string) (string, error) {
+	return val, nil
+}
+
+func (d *Databases) Read(key string) (*Database, error) {
+	var owner string
+	row := d.Db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, key)
+	if err := row.Scan(&owner); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &Database{Name: key, Owner: owner}, nil
+}
+
+func (d *Databases) Exists(obj Database) (bool, error) {
+	existing, err := d.Read(obj.Name)
+	return existing != nil, err
+}
+
+func (d *Databases) Create(obj Database) (*Database, error) {
+	info, err := CalcDbConnectionInfo(d.Db)
 	if err != nil {
-		return fmt.Errorf("error analyzing existing databases: %w", err)
+		return nil, fmt.Errorf("error analyzing existing databases: %w", err)
 	}
 
 	var grant Revoker = NoopRevoker{}
-	if d.Owner != "" && !info.IsSuperuser {
+	if obj.Owner != "" && !info.IsSuperuser {
 		var err error
-		grant, err = GrantRoleMembership(db, d.Owner, info.CurrentUser)
+		grant, err = GrantRoleMembership(d.Db, obj.Owner, info.CurrentUser)
 		if err != nil {
-			return fmt.Errorf("error granting temporary membership: %w", err)
+			return nil, fmt.Errorf("error granting temporary membership: %w", err)
 		}
 	}
 
-	sq := d.generateCreateSql(info.SupportedFeatures)
-	log.Printf("Creating database %q, assigning owner to service user %q\n", d.Name, d.Owner)
+	sq := d.generateCreateSql(obj, info.SupportedFeatures)
+	log.Printf("Creating database %q, assigning owner to service user %q\n", obj.Name, obj.Owner)
 	errs := make([]error, 0)
-	if _, err := db.Exec(sq); err != nil {
-		errs = append(errs, fmt.Errorf("error creating database %q: %w", d.Name, err))
+	if _, err := d.Db.Exec(sq); err != nil {
+		errs = append(errs, fmt.Errorf("error creating database %q: %w", obj.Name, err))
 	}
-	if err := grant.Revoke(db); err != nil {
+	if err := grant.Revoke(d.Db); err != nil {
 		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", err))
 	}
 	if len(errs) > 0 {
-		return multierror.New(errs)
+		return nil, multierror.New(errs)
 	}
-	return nil
+	return &obj, nil
 }
 
-func (d Database) generateCreateSql(features Features) string {
+func (d *Databases) Ensure(obj Database) (*Database, error) {
+	if existing, err := d.Read(obj.Name); err != nil {
+		return nil, err
+	} else if existing != nil {
+		return existing, nil
+	}
+	return d.Create(obj)
+}
+
+func (d *Databases) Update(key string, obj Database) (*Database, error) {
+	return d.Read(key)
+}
+
+func (d *Databases) Drop(key string) (bool, error) {
+	return true, nil
+}
+
+func (*Databases) generateCreateSql(d Database, features Features) string {
 	b := bytes.NewBufferString("CREATE DATABASE ")
 	fmt.Fprint(b, pq.QuoteIdentifier(d.Name))
 
@@ -117,46 +158,4 @@ func (d Database) generateCreateSql(features Features) string {
 	}
 
 	return b.String()
-}
-
-func (d Database) Ensure(db *sql.DB) error {
-	if exists, err := d.Exists(db); exists {
-		log.Printf("database %q already exists\n", d.Name)
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("error checking for database %q: %w", d.Name, err)
-	}
-	if err := d.Create(db); err != nil {
-		return fmt.Errorf("error creating database %q: %w", d.Name, err)
-	}
-	return nil
-}
-
-func (d Database) Exists(db *sql.DB) (bool, error) {
-	check := Database{Name: d.Name}
-	if err := check.Read(db); err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
-func (d *Database) Read(db *sql.DB) error {
-	var owner string
-	row := db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, d.Name)
-	if err := row.Scan(&owner); err != nil {
-		return err
-	}
-	d.Owner = owner
-	return nil
-}
-
-func (d Database) Update(db *sql.DB) error {
-	return nil
-}
-
-func (d Database) Drop(db *sql.DB) error {
-	return nil
 }

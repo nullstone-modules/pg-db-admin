@@ -12,8 +12,8 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/lib/pq v1.10.2
 	github.com/nullstone-io/go-lambda-api-sdk v0.0.0-20220822142216-88f0b6a0b990
-	github.com/nullstone-io/go-rest-api v0.0.0-20220822174657-dc3083ade082
-	github.com/stretchr/testify v1.7.2
+	github.com/nullstone-io/go-rest-api v0.0.0-20220823151532-844a95ca02f3
+	github.com/stretchr/testify v1.8.0
 )
 
 require (

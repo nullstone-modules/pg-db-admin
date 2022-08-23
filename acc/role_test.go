@@ -15,12 +15,15 @@ func TestRole(t *testing.T) {
 	db := createDb(t)
 	defer db.Close()
 
-	role := postgresql.Role{
+	roles := postgresql.Roles{Db: db}
+
+	_, err := roles.Create(postgresql.Role{
 		Name:     "role-test-user",
 		Password: "role-test-password",
-	}
-	require.NoError(t, role.Create(db), "unexpected error")
+	})
+	require.NoError(t, err, "unexpected error")
 
-	find := &postgresql.Role{Name: "role-test-user"}
-	require.NoError(t, find.Read(db), "read user")
+	find, err := roles.Read("role-test-user")
+	require.NoError(t, err, "read user")
+	require.NotNil(t, find)
 }
