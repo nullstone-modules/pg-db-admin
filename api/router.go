@@ -7,6 +7,7 @@ import (
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func CreateRouter(dbConnUrl string) *mux.Router {
@@ -79,21 +80,20 @@ func CreateRouter(dbConnUrl string) *mux.Router {
 	r.Methods(http.MethodPut).Path("/databases/{database}/schema_privileges/{role}").HandlerFunc(schemaPrivileges.Update)
 	r.Methods(http.MethodDelete).Path("/databases/{database}/schema_privileges/{role}").HandlerFunc(schemaPrivileges.Delete)
 
-	roleDefaultPrivileges := rest.Resource[postgresql.RoleDefaultPrivilegeKey, postgresql.RoleDefaultPrivilege]{
-		DataAccess: &postgresql.RoleDefaultPrivileges{BaseConnectionUrl: dbConnUrl},
-		KeyParser: func(r *http.Request) (postgresql.RoleDefaultPrivilegeKey, error) {
+	defaultGrants := rest.Resource[postgresql.DefaultGrantKey, postgresql.DefaultGrant]{
+		DataAccess: &postgresql.DefaultGrants{BaseConnectionUrl: dbConnUrl},
+		KeyParser: func(r *http.Request) (postgresql.DefaultGrantKey, error) {
 			vars := mux.Vars(r)
-			return postgresql.RoleDefaultPrivilegeKey{
-				Database: vars["database"],
-				Role:     vars["role"],
-				Target:   vars["target"],
-			}, nil
+			id := vars["id"]
+			key := postgresql.DefaultGrantKey{Role: vars["role"]}
+			key.Target, key.Database, _ = strings.Cut(id, "::")
+			return key, nil
 		},
 	}
-	r.Methods(http.MethodPost).Path("/databases/{database}/role_default_privileges").HandlerFunc(roleDefaultPrivileges.Create)
-	r.Methods(http.MethodGet).Path("/databases/{database}/role_default_privileges/{role}/{target}").HandlerFunc(roleDefaultPrivileges.Get)
-	r.Methods(http.MethodPut).Path("/databases/{database}/role_default_privileges/{role}/{target}").HandlerFunc(roleDefaultPrivileges.Update)
-	r.Methods(http.MethodDelete).Path("/databases/{database}/role_default_privileges/{role}/{target}").HandlerFunc(roleDefaultPrivileges.Delete)
+	r.Methods(http.MethodPost).Path("/roles/{role}/default_grants").HandlerFunc(defaultGrants.Create)
+	r.Methods(http.MethodGet).Path("/roles/{role}/default_grants/{id}").HandlerFunc(defaultGrants.Get)
+	r.Methods(http.MethodPut).Path("/roles/{role}/default_grants/{id}").HandlerFunc(defaultGrants.Update)
+	r.Methods(http.MethodDelete).Path("/roles/{role}/default_grants/{id}").HandlerFunc(defaultGrants.Delete)
 
 	return r
 }

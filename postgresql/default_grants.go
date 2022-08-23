@@ -8,65 +8,71 @@ import (
 	"strings"
 )
 
-// RoleDefaultPrivilege defines a template of privileges that Role will be granted to Database
+// DefaultGrant defines a template of privileges that Role will be granted to Database
 // This grants default privileges on schema objects created by Role in Database to Target
-type RoleDefaultPrivilege struct {
+type DefaultGrant struct {
+	Id       string `json:"id"`
 	Role     string `json:"role"`
 	Target   string `json:"target"`
 	Database string `json:"database"`
 }
 
-func (priv RoleDefaultPrivilege) Key() RoleDefaultPrivilegeKey {
-	return RoleDefaultPrivilegeKey{
-		Role:     priv.Role,
-		Target:   priv.Target,
-		Database: priv.Database,
+func (g *DefaultGrant) SetId() {
+	g.Id = fmt.Sprintf("%s::%s", g.Target, g.Database)
+}
+
+func (g DefaultGrant) Key() DefaultGrantKey {
+	return DefaultGrantKey{
+		Role:     g.Role,
+		Target:   g.Target,
+		Database: g.Database,
 	}
 }
 
-type RoleDefaultPrivilegeKey struct {
+type DefaultGrantKey struct {
 	Role     string
 	Target   string
 	Database string
 }
 
-var _ rest.DataAccess[RoleDefaultPrivilegeKey, RoleDefaultPrivilege] = &RoleDefaultPrivileges{}
+var _ rest.DataAccess[DefaultGrantKey, DefaultGrant] = &DefaultGrants{}
 
-type RoleDefaultPrivileges struct {
+type DefaultGrants struct {
 	BaseConnectionUrl string
 }
 
-func (r *RoleDefaultPrivileges) Read(key RoleDefaultPrivilegeKey) (*RoleDefaultPrivilege, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, key.Database)
+func (g *DefaultGrants) Read(key DefaultGrantKey) (*DefaultGrant, error) {
+	db, err := OpenDatabase(g.BaseConnectionUrl, key.Database)
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
 
 	// TODO: Introspect
-	obj := RoleDefaultPrivilege{
+	grant := DefaultGrant{
 		Role:     key.Role,
 		Database: key.Database,
 		Target:   key.Target,
 	}
-	return &obj, nil
+	grant.SetId()
+	return &grant, nil
 }
 
-func (r *RoleDefaultPrivileges) Exists(priv RoleDefaultPrivilege) (bool, error) {
-	existing, err := r.Read(priv.Key())
+func (g *DefaultGrants) Exists(grant DefaultGrant) (bool, error) {
+	existing, err := g.Read(grant.Key())
 	return existing != nil, err
 }
 
-func (r *RoleDefaultPrivileges) Create(priv RoleDefaultPrivilege) (*RoleDefaultPrivilege, error) {
-	return r.Update(priv.Key(), priv)
+func (g *DefaultGrants) Create(grant DefaultGrant) (*DefaultGrant, error) {
+	return g.Update(grant.Key(), grant)
 }
 
-func (r *RoleDefaultPrivileges) Ensure(priv RoleDefaultPrivilege) (*RoleDefaultPrivilege, error) {
-	return r.Update(priv.Key(), priv)
+func (g *DefaultGrants) Ensure(grant DefaultGrant) (*DefaultGrant, error) {
+	return g.Update(grant.Key(), grant)
 }
 
-func (r *RoleDefaultPrivileges) Update(key RoleDefaultPrivilegeKey, priv RoleDefaultPrivilege) (*RoleDefaultPrivilege, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, priv.Database)
+func (g *DefaultGrants) Update(key DefaultGrantKey, grant DefaultGrant) (*DefaultGrant, error) {
+	db, err := OpenDatabase(g.BaseConnectionUrl, grant.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -77,15 +83,15 @@ func (r *RoleDefaultPrivileges) Update(key RoleDefaultPrivilegeKey, priv RoleDef
 		return nil, fmt.Errorf("error analyzing database: %w", err)
 	}
 
-	var grant Revoker = NoopRevoker{}
+	var revoker Revoker = NoopRevoker{}
 	var tempErr error
 	if !info.IsSuperuser {
-		grant, tempErr = GrantRoleMembership(db, priv.Role, info.CurrentUser)
+		revoker, tempErr = GrantRoleMembership(db, grant.Role, info.CurrentUser)
 		// We only care about this error if the privilege sql didn't work down below
 	}
 
-	quotedUserName := pq.QuoteIdentifier(priv.Role)
-	quotedTarget := pq.QuoteIdentifier(priv.Target)
+	quotedUserName := pq.QuoteIdentifier(grant.Role)
+	quotedTarget := pq.QuoteIdentifier(grant.Target)
 
 	sq := strings.Join([]string{
 		fmt.Sprintf(`ALTER DEFAULT PRIVILEGES FOR ROLE %s GRANT ALL PRIVILEGES ON TABLES TO %s;`, quotedUserName, quotedTarget),
@@ -101,17 +107,18 @@ func (r *RoleDefaultPrivileges) Update(key RoleDefaultPrivilegeKey, priv RoleDef
 		}
 		errs = append(errs, fmt.Errorf("error altering default privileges: %w", err))
 	}
-	if grant != nil {
-		if revokeErr := grant.Revoke(db); revokeErr != nil {
+	if revoker != nil {
+		if revokeErr := revoker.Revoke(db); revokeErr != nil {
 			errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", revokeErr))
 		}
 	}
 	if len(errs) > 0 {
 		return nil, multierror.New(errs)
 	}
-	return &priv, nil
+	grant.SetId()
+	return &grant, nil
 }
 
-func (r *RoleDefaultPrivileges) Drop(key RoleDefaultPrivilegeKey) (bool, error) {
+func (g *DefaultGrants) Drop(key DefaultGrantKey) (bool, error) {
 	return true, nil
 }

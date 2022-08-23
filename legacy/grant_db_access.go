@@ -37,7 +37,7 @@ func grantRole(store postgresql.Store, username, databaseOwner string) error {
 
 func grantDefaultPrivileges(store postgresql.Store, roleName, databaseName, targetName string) error {
 	log.Printf("Granting %q default privileges to %q", roleName, targetName)
-	priv := postgresql.RoleDefaultPrivilege{
+	priv := postgresql.DefaultGrant{
 		Role:     roleName,
 		Database: databaseName,
 		Target:   targetName,

@@ -6,7 +6,7 @@ type Store struct {
 	Databases             *Databases
 	Roles                 *Roles
 	RoleMembers           *RoleMembers
-	RoleDefaultPrivileges *RoleDefaultPrivileges
+	RoleDefaultPrivileges *DefaultGrants
 	SchemaPrivileges      *SchemaPrivileges
 }
 
@@ -15,7 +15,7 @@ func NewStore(db *sql.DB, connUrl string) Store {
 		Databases:             &Databases{Db: db},
 		Roles:                 &Roles{Db: db},
 		RoleMembers:           &RoleMembers{Db: db},
-		RoleDefaultPrivileges: &RoleDefaultPrivileges{BaseConnectionUrl: connUrl},
+		RoleDefaultPrivileges: &DefaultGrants{BaseConnectionUrl: connUrl},
 		SchemaPrivileges:      &SchemaPrivileges{BaseConnectionUrl: connUrl},
 	}
 }
