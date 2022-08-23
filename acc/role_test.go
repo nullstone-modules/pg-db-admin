@@ -12,18 +12,16 @@ func TestRole(t *testing.T) {
 		t.Skip("Set ACC=1 to run e2e tests")
 	}
 
-	db := createDb(t)
+	db, store := createDb(t)
 	defer db.Close()
 
-	roles := postgresql.Roles{Db: db}
-
-	_, err := roles.Create(postgresql.Role{
+	_, err := store.Roles.Create(postgresql.Role{
 		Name:     "role-test-user",
 		Password: "role-test-password",
 	})
 	require.NoError(t, err, "unexpected error")
 
-	find, err := roles.Read("role-test-user")
+	find, err := store.Roles.Read("role-test-user")
 	require.NoError(t, err, "read user")
 	require.NotNil(t, find)
 }

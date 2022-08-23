@@ -11,15 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/nullstone-io/go-lambda-api-sdk/function_url"
 	"github.com/nullstone-modules/pg-db-admin/api"
+	"github.com/nullstone-modules/pg-db-admin/legacy"
 	"log"
 	"os"
 )
 
 const (
 	dbConnUrlSecretIdEnvVar = "DB_CONN_URL_SECRET_ID"
-	eventTypeCreateDatabase = "create-database"
-	eventTypeCreateUser     = "create-user"
-	eventTypeCreateDbAccess = "create-db-access"
 )
 
 func main() {
@@ -36,19 +34,11 @@ func HandleRequest(dbConnUrl string) func(ctx context.Context, rawEvent json.Raw
 			router := api.CreateRouter(dbConnUrl)
 			return function_url.Handle(ctx, event, router)
 		}
-		if ok, event := isAdminEvent(rawEvent); ok {
-			return handleAdminEvent(ctx, event, dbConnUrl)
+		if ok, event := legacy.IsEvent(rawEvent); ok {
+			return legacy.Handle(ctx, event, dbConnUrl)
 		}
 		return nil, nil
 	}
-}
-
-func isAdminEvent(rawEvent json.RawMessage) (bool, AdminEvent) {
-	var event AdminEvent
-	if err := json.Unmarshal(rawEvent, &event); err != nil {
-		return false, event
-	}
-	return event.Type != "", event
 }
 
 func isFunctionUrlEvent(raw json.RawMessage) (bool, events.LambdaFunctionURLRequest) {

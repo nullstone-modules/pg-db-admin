@@ -14,21 +14,18 @@ func TestDatabase(t *testing.T) {
 		t.Skip("Set ACC=1 to run e2e tests")
 	}
 
-	db := createDb(t)
+	db, store := createDb(t)
 	defer db.Close()
-
-	databases := postgresql.Databases{Db: db}
-	roles := postgresql.Roles{Db: db}
 
 	databaseName := "database-test-database"
 
-	ownerRole, err := roles.Ensure(postgresql.Role{Name: databaseName})
+	ownerRole, err := store.Roles.Ensure(postgresql.Role{Name: databaseName})
 	require.NoError(t, err, "error creating owner role")
 
-	_, err = databases.Create(postgresql.Database{Name: databaseName, Owner: ownerRole.Name})
+	_, err = store.Databases.Create(postgresql.Database{Name: databaseName, Owner: ownerRole.Name})
 	require.NoError(t, err, "unexpected error")
 
-	find, err := databases.Read(databaseName)
+	find, err := store.Databases.Read(databaseName)
 	require.NoError(t, err, "read database")
 	assert.Equal(t, ownerRole.Name, find.Owner, "mismatched owner")
 }

@@ -22,15 +22,18 @@ func CreateRouter(dbConnUrl string) *mux.Router {
 				http.Error(w, "unable to connect to database", http.StatusInternalServerError)
 				return
 			}
+			defer db.Close()
 
 			handler.ServeHTTP(w, r)
 		})
 	})
 	r.Use(dbMiddleware)
 
-	databases := rest.Resource[string, postgresql.Database]{
-		DataAccess:      &postgresql.Databases{Db: db},
-		IdPathParameter: "name",
+	store := postgresql.NewStore(db, dbConnUrl)
+
+	databases := &rest.Resource[string, postgresql.Database]{
+		DataAccess: store.Databases,
+		KeyParser:  rest.PathParameterKeyParser("name"),
 	}
 	r.Methods(http.MethodPost).Path("/databases").HandlerFunc(databases.Create)
 	r.Methods(http.MethodGet).Path("/databases/{name}").HandlerFunc(databases.Get)
@@ -38,22 +41,59 @@ func CreateRouter(dbConnUrl string) *mux.Router {
 	r.Methods(http.MethodDelete).Path("/databases/{name}").HandlerFunc(databases.Delete)
 
 	roles := rest.Resource[string, postgresql.Role]{
-		DataAccess:      &postgresql.Roles{Db: db},
-		IdPathParameter: "name",
+		DataAccess: store.Roles,
+		KeyParser:  rest.PathParameterKeyParser("name"),
 	}
 	r.Methods(http.MethodPost).Path("/roles").HandlerFunc(roles.Create)
 	r.Methods(http.MethodGet).Path("/roles/{name}").HandlerFunc(roles.Get)
 	r.Methods(http.MethodPut).Path("/roles/{name}").HandlerFunc(roles.Update)
 	r.Methods(http.MethodDelete).Path("/roles/{name}").HandlerFunc(roles.Delete)
 
-	roleGrants := rest.Resource[string, postgresql.RoleGrant]{
-		DataAccess:      &postgresql.RoleGrants{Db: db},
-		IdPathParameter: "id",
+	roleMembers := rest.Resource[postgresql.RoleMemberKey, postgresql.RoleMember]{
+		DataAccess: &postgresql.RoleMembers{Db: db},
+		KeyParser: func(r *http.Request) (postgresql.RoleMemberKey, error) {
+			vars := mux.Vars(r)
+			return postgresql.RoleMemberKey{
+				Member: vars["member"],
+				Target: vars["target"],
+			}, nil
+		},
 	}
-	r.Methods(http.MethodPost).Path("/role_grants").HandlerFunc(roleGrants.Create)
-	r.Methods(http.MethodGet).Path("/role_grants/{id}").HandlerFunc(roleGrants.Get)
-	r.Methods(http.MethodPut).Path("/role_grants/{id}").HandlerFunc(roleGrants.Update)
-	r.Methods(http.MethodDelete).Path("/role_grants/{id}").HandlerFunc(roleGrants.Delete)
+	r.Methods(http.MethodPost).Path("/roles/{target}/members").HandlerFunc(roleMembers.Create)
+	r.Methods(http.MethodGet).Path("/roles/{target}/members/{member}").HandlerFunc(roleMembers.Get)
+	r.Methods(http.MethodPut).Path("/roles/{target}/members/{member}").HandlerFunc(roleMembers.Update)
+	r.Methods(http.MethodDelete).Path("/roles/{target}/members/{member}").HandlerFunc(roleMembers.Delete)
+
+	schemaPrivileges := rest.Resource[postgresql.SchemaPrivilegeKey, postgresql.SchemaPrivilege]{
+		DataAccess: &postgresql.SchemaPrivileges{BaseConnectionUrl: dbConnUrl},
+		KeyParser: func(r *http.Request) (postgresql.SchemaPrivilegeKey, error) {
+			vars := mux.Vars(r)
+			return postgresql.SchemaPrivilegeKey{
+				Database: vars["database"],
+				Role:     vars["role"],
+			}, nil
+		},
+	}
+	r.Methods(http.MethodPost).Path("/databases/{database}/schema_privileges").HandlerFunc(schemaPrivileges.Create)
+	r.Methods(http.MethodGet).Path("/databases/{database}/schema_privileges/{role}").HandlerFunc(schemaPrivileges.Get)
+	r.Methods(http.MethodPut).Path("/databases/{database}/schema_privileges/{role}").HandlerFunc(schemaPrivileges.Update)
+	r.Methods(http.MethodDelete).Path("/databases/{database}/schema_privileges/{role}").HandlerFunc(schemaPrivileges.Delete)
+
+	roleDefaultPrivileges := rest.Resource[postgresql.RoleDefaultPrivilegeKey, postgresql.RoleDefaultPrivilege]{
+		DataAccess: &postgresql.RoleDefaultPrivileges{BaseConnectionUrl: dbConnUrl},
+		KeyParser: func(r *http.Request) (postgresql.RoleDefaultPrivilegeKey, error) {
+			vars := mux.Vars(r)
+			return postgresql.RoleDefaultPrivilegeKey{
+				Database: vars["database"],
+				Role:     vars["role"],
+				Target:   vars["target"],
+			}, nil
+		},
+	}
+	r.Methods(http.MethodPost).Path("/databases/{database}/role_default_privileges").HandlerFunc(roleDefaultPrivileges.Create)
+	r.Methods(http.MethodGet).Path("/databases/{database}/role_default_privileges/{role}/{target}").HandlerFunc(roleDefaultPrivileges.Get)
+	r.Methods(http.MethodPut).Path("/databases/{database}/role_default_privileges/{role}/{target}").HandlerFunc(roleDefaultPrivileges.Update)
+	r.Methods(http.MethodDelete).Path("/databases/{database}/role_default_privileges/{role}/{target}").HandlerFunc(roleDefaultPrivileges.Delete)
 
 	return r
 }

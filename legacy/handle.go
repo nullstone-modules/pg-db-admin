@@ -1,11 +1,17 @@
-package main
+package legacy
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
-	"github.com/nullstone-modules/pg-db-admin/workflows"
+)
+
+const (
+	eventTypeCreateDatabase = "create-database"
+	eventTypeCreateUser     = "create-user"
+	eventTypeCreateDbAccess = "create-db-access"
 )
 
 type AdminEvent struct {
@@ -13,12 +19,21 @@ type AdminEvent struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
-func handleAdminEvent(ctx context.Context, event AdminEvent, dbConnUrl string) (any, error) {
+func IsEvent(rawEvent json.RawMessage) (bool, AdminEvent) {
+	var event AdminEvent
+	if err := json.Unmarshal(rawEvent, &event); err != nil {
+		return false, event
+	}
+	return event.Type != "", event
+}
+
+func Handle(ctx context.Context, event AdminEvent, dbConnUrl string) (any, error) {
 	db, err := sql.Open("postgres", dbConnUrl)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to db: %w", err)
 	}
 	defer db.Close()
+	store := postgresql.NewStore(db, dbConnUrl)
 
 	switch event.Type {
 	case eventTypeCreateDatabase:
@@ -27,8 +42,7 @@ func handleAdminEvent(ctx context.Context, event AdminEvent, dbConnUrl string) (
 		if newDatabase.Name == "" {
 			return nil, fmt.Errorf("cannot create database: databaseName is required")
 		}
-		newDatabase.Owner = newDatabase.Name
-		return nil, workflows.EnsureDatabase(db, newDatabase)
+		return nil, EnsureDatabase(store, newDatabase)
 	case eventTypeCreateUser:
 		newUser := postgresql.Role{}
 		newUser.Name, _ = event.Metadata["username"]
@@ -39,26 +53,17 @@ func handleAdminEvent(ctx context.Context, event AdminEvent, dbConnUrl string) (
 		if newUser.Password == "" {
 			return nil, fmt.Errorf("cannot create user: password is required")
 		}
-		return nil, workflows.EnsureUser(db, newUser)
+		return nil, EnsureUser(store, newUser)
 	case eventTypeCreateDbAccess:
-		user := postgresql.Role{}
-		user.Name, _ = event.Metadata["username"]
-		if user.Name == "" {
+		username, _ := event.Metadata["username"]
+		if username == "" {
 			return nil, fmt.Errorf("cannot grant user access to db: username is required")
 		}
-		database := postgresql.Database{}
-		database.Name, _ = event.Metadata["databaseName"]
-		if database.Name == "" {
+		databaseName, _ := event.Metadata["databaseName"]
+		if databaseName == "" {
 			return nil, fmt.Errorf("cannot grant user access to db: database name is required")
 		}
-
-		appDb, err := postgresql.OpenDatabase(dbConnUrl, database.Name)
-		if err != nil {
-			return nil, fmt.Errorf("error connecting to app db %q: %w", database.Name, err)
-		}
-		defer appDb.Close()
-
-		return nil, workflows.GrantDbAccess(db, appDb, user, database)
+		return nil, GrantDbAccess(store, username, databaseName)
 	default:
 		return nil, fmt.Errorf("unknown event %q", event.Type)
 	}
