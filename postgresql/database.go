@@ -30,10 +30,6 @@ type Databases struct {
 	Db *sql.DB
 }
 
-func (d *Databases) ParseKey(val string) (string, error) {
-	return val, nil
-}
-
 func (d *Databases) Read(key string) (*Database, error) {
 	var owner string
 	row := d.Db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, key)

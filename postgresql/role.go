@@ -20,10 +20,6 @@ type Roles struct {
 	Db *sql.DB
 }
 
-func (r *Roles) ParseKey(val string) (string, error) {
-	return val, nil
-}
-
 func (r *Roles) Read(key string) (*Role, error) {
 	var name string
 	row := r.Db.QueryRow(`SELECT rolname from pg_roles WHERE rolname = $1`, key)
