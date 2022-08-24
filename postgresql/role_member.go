@@ -28,10 +28,16 @@ type RoleMemberKey struct {
 var _ rest.DataAccess[RoleMemberKey, RoleMember] = &RoleMembers{}
 
 type RoleMembers struct {
-	Db *sql.DB
+	BaseConnectionUrl string
 }
 
 func (r *RoleMembers) Read(key RoleMemberKey) (*RoleMember, error) {
+	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
 	sq := `SELECT
 pg_get_userbyid(member) as role,
 	pg_get_userbyid(roleid) as grant_role,
@@ -43,7 +49,7 @@ WHERE pg_get_userbyid(member) = $1 AND pg_get_userbyid(roleid) = $2`
 		Member: key.Member,
 		Target: key.Target,
 	}
-	row := r.Db.QueryRow(sq, key.Member, key.Target)
+	row := db.QueryRow(sq, key.Member, key.Target)
 	if err := row.Scan(&grant.Member, &grant.Target, &grant.WithAdminOption); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -62,12 +68,18 @@ func (r *RoleMembers) Exists(grant RoleMember) (bool, error) {
 }
 
 func (r *RoleMembers) Create(grant RoleMember) (*RoleMember, error) {
+	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
 	sq := fmt.Sprintf("GRANT %s TO %s", pq.QuoteIdentifier(grant.Target), pq.QuoteIdentifier(grant.Member))
 	if grant.WithAdminOption {
 		sq = sq + " WITH ADMIN OPTION"
 	}
 
-	_, err := r.Db.Exec(sq)
+	_, err = db.Exec(sq)
 	return &grant, err
 }
 

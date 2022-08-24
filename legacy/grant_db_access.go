@@ -42,7 +42,7 @@ func grantDefaultPrivileges(store postgresql.Store, roleName, databaseName, targ
 		Database: databaseName,
 		Target:   targetName,
 	}
-	_, err := store.RoleDefaultPrivileges.Ensure(priv)
+	_, err := store.DefaultGrants.Ensure(priv)
 	return err
 }
 

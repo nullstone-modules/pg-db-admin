@@ -1,7 +1,6 @@
 package api
 
 import (
-	"database/sql"
 	"github.com/gorilla/mux"
 	"github.com/nullstone-io/go-rest-api"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
@@ -13,22 +12,6 @@ import (
 func CreateRouter(dbConnUrl string) *mux.Router {
 	r := mux.NewRouter()
 
-	var db *sql.DB
-	dbMiddleware := mux.MiddlewareFunc(func(handler http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var err error
-			db, err = sql.Open("postgres", dbConnUrl)
-			if err != nil {
-				log.Printf("unable to connect to database: %s\n", err)
-				http.Error(w, "unable to connect to database", http.StatusInternalServerError)
-				return
-			}
-			defer db.Close()
-
-			handler.ServeHTTP(w, r)
-		})
-	})
-	r.Use(dbMiddleware)
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%d %s %s\n", http.StatusNotFound, r.Method, r.RequestURI)
 		http.NotFound(w, r)
@@ -38,7 +21,7 @@ func CreateRouter(dbConnUrl string) *mux.Router {
 		http.Error(w, "", http.StatusMethodNotAllowed)
 	})
 
-	store := postgresql.NewStore(db, dbConnUrl)
+	store := postgresql.NewStore(dbConnUrl)
 
 	databases := &rest.Resource[string, postgresql.Database]{
 		DataAccess: store.Databases,
@@ -59,7 +42,7 @@ func CreateRouter(dbConnUrl string) *mux.Router {
 	r.Methods(http.MethodDelete).Path("/roles/{name}").HandlerFunc(roles.Delete)
 
 	roleMembers := rest.Resource[postgresql.RoleMemberKey, postgresql.RoleMember]{
-		DataAccess: &postgresql.RoleMembers{Db: db},
+		DataAccess: store.RoleMembers,
 		KeyParser: func(r *http.Request) (postgresql.RoleMemberKey, error) {
 			vars := mux.Vars(r)
 			return postgresql.RoleMemberKey{
@@ -74,7 +57,7 @@ func CreateRouter(dbConnUrl string) *mux.Router {
 	r.Methods(http.MethodDelete).Path("/roles/{target}/members/{member}").HandlerFunc(roleMembers.Delete)
 
 	schemaPrivileges := rest.Resource[postgresql.SchemaPrivilegeKey, postgresql.SchemaPrivilege]{
-		DataAccess: &postgresql.SchemaPrivileges{BaseConnectionUrl: dbConnUrl},
+		DataAccess: store.SchemaPrivileges,
 		KeyParser: func(r *http.Request) (postgresql.SchemaPrivilegeKey, error) {
 			vars := mux.Vars(r)
 			return postgresql.SchemaPrivilegeKey{
@@ -89,7 +72,7 @@ func CreateRouter(dbConnUrl string) *mux.Router {
 	r.Methods(http.MethodDelete).Path("/databases/{database}/schema_privileges/{role}").HandlerFunc(schemaPrivileges.Delete)
 
 	defaultGrants := rest.Resource[postgresql.DefaultGrantKey, postgresql.DefaultGrant]{
-		DataAccess: &postgresql.DefaultGrants{BaseConnectionUrl: dbConnUrl},
+		DataAccess: store.DefaultGrants,
 		KeyParser: func(r *http.Request) (postgresql.DefaultGrantKey, error) {
 			vars := mux.Vars(r)
 			id := vars["id"]

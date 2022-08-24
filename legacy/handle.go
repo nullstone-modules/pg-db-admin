@@ -2,7 +2,6 @@ package legacy
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
@@ -28,12 +27,7 @@ func IsEvent(rawEvent json.RawMessage) (bool, AdminEvent) {
 }
 
 func Handle(ctx context.Context, event AdminEvent, dbConnUrl string) (any, error) {
-	db, err := sql.Open("postgres", dbConnUrl)
-	if err != nil {
-		return nil, fmt.Errorf("error connecting to db: %w", err)
-	}
-	defer db.Close()
-	store := postgresql.NewStore(db, dbConnUrl)
+	store := postgresql.NewStore(dbConnUrl)
 
 	switch event.Type {
 	case eventTypeCreateDatabase:

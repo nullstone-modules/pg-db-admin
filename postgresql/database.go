@@ -27,12 +27,18 @@ type Database struct {
 var _ rest.DataAccess[string, Database] = &Databases{}
 
 type Databases struct {
-	Db *sql.DB
+	BaseConnectionUrl string
 }
 
 func (d *Databases) Read(key string) (*Database, error) {
+	db, err := OpenDatabase(d.BaseConnectionUrl, "")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
 	var owner string
-	row := d.Db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, key)
+	row := db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, key)
 	if err := row.Scan(&owner); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -48,7 +54,13 @@ func (d *Databases) Exists(obj Database) (bool, error) {
 }
 
 func (d *Databases) Create(obj Database) (*Database, error) {
-	info, err := CalcDbConnectionInfo(d.Db)
+	db, err := OpenDatabase(d.BaseConnectionUrl, "")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	info, err := CalcDbConnectionInfo(db)
 	if err != nil {
 		return nil, fmt.Errorf("error analyzing existing databases: %w", err)
 	}
@@ -56,7 +68,7 @@ func (d *Databases) Create(obj Database) (*Database, error) {
 	var grant Revoker = NoopRevoker{}
 	if obj.Owner != "" && !info.IsSuperuser {
 		var err error
-		grant, err = GrantRoleMembership(d.Db, obj.Owner, info.CurrentUser)
+		grant, err = GrantRoleMembership(db, obj.Owner, info.CurrentUser)
 		if err != nil {
 			return nil, fmt.Errorf("error granting temporary membership: %w", err)
 		}
@@ -65,10 +77,10 @@ func (d *Databases) Create(obj Database) (*Database, error) {
 	sq := d.generateCreateSql(obj, info.SupportedFeatures)
 	log.Printf("Creating database %q, assigning owner to service user %q\n", obj.Name, obj.Owner)
 	errs := make([]error, 0)
-	if _, err := d.Db.Exec(sq); err != nil {
+	if _, err := db.Exec(sq); err != nil {
 		errs = append(errs, fmt.Errorf("error creating database %q: %w", obj.Name, err))
 	}
-	if err := grant.Revoke(d.Db); err != nil {
+	if err := grant.Revoke(db); err != nil {
 		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", err))
 	}
 	if len(errs) > 0 {
