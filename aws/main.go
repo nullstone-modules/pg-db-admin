@@ -33,7 +33,9 @@ func HandleRequest(dbConnUrl string) func(ctx context.Context, rawEvent json.Raw
 		if ok, event := isFunctionUrlEvent(rawEvent); ok {
 			router := api.CreateRouter(dbConnUrl)
 			log.Println("Function URL Event", event.RequestContext.HTTP.Method, event.RequestContext.HTTP.Path)
-			return function_url.Handle(ctx, event, router)
+			res, err := function_url.Handle(ctx, event, router)
+			log.Println("Function URL Response", res.StatusCode)
+			return res, err
 		}
 		if ok, event := legacy.IsEvent(rawEvent); ok {
 			log.Println("Legacy Event", event.Type)
