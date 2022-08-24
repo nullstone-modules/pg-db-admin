@@ -29,6 +29,14 @@ func CreateRouter(dbConnUrl string) *mux.Router {
 		})
 	})
 	r.Use(dbMiddleware)
+	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%d %s %s\n", http.StatusNotFound, r.Method, r.RequestURI)
+		http.NotFound(w, r)
+	})
+	r.MethodNotAllowedHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%d %s %s\n", http.StatusMethodNotAllowed, r.Method, r.RequestURI)
+		http.Error(w, "", http.StatusMethodNotAllowed)
+	})
 
 	store := postgresql.NewStore(db, dbConnUrl)
 

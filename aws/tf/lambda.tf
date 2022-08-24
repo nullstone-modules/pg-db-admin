@@ -27,6 +27,8 @@ resource "aws_lambda_function_url" "db_admin" {
 }
 
 // Allow invoker to invoke function url
+// See https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html
+// TODO: This fails if the invoker isn't fully created yet; how can we make it work?
 resource "aws_lambda_permission" "db_admin_invoke" {
   statement_id_prefix    = "AllowDbAdminInvoke"
   function_name          = aws_lambda_function.db_admin.function_name

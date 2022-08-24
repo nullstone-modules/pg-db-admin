@@ -32,11 +32,14 @@ func HandleRequest(dbConnUrl string) func(ctx context.Context, rawEvent json.Raw
 	return func(ctx context.Context, rawEvent json.RawMessage) (any, error) {
 		if ok, event := isFunctionUrlEvent(rawEvent); ok {
 			router := api.CreateRouter(dbConnUrl)
+			log.Println("Function URL Event", event.RequestContext.HTTP.Method, event.RequestContext.HTTP.Path)
 			return function_url.Handle(ctx, event, router)
 		}
 		if ok, event := legacy.IsEvent(rawEvent); ok {
+			log.Println("Legacy Event", event.Type)
 			return legacy.Handle(ctx, event, dbConnUrl)
 		}
+		log.Println("Unknown Event", string(rawEvent))
 		return nil, nil
 	}
 }
