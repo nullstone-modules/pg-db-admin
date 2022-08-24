@@ -25,3 +25,12 @@ resource "aws_lambda_function_url" "db_admin" {
   function_name      = aws_lambda_function.db_admin.function_name
   authorization_type = "AWS_IAM"
 }
+
+// Allow invoker to invoke function url
+resource "aws_lambda_permission" "db_admin_invoke" {
+  statement_id_prefix    = "AllowDbAdminInvoke"
+  function_name          = aws_lambda_function.db_admin.function_name
+  action                 = "lambda:InvokeFunctionUrl"
+  principal              = aws_iam_user.invoker.arn
+  function_url_auth_type = "AWS_IAM"
+}
