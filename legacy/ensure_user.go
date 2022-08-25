@@ -7,6 +7,7 @@ import (
 
 func EnsureUser(store postgresql.Store, newUser postgresql.Role) error {
 	log.Printf("ensuring user %q\n", newUser.Name)
-	_, err := store.Roles.Ensure(newUser)
+	newUser.UseExisting = true
+	_, err := store.Roles.Create(newUser)
 	return err
 }

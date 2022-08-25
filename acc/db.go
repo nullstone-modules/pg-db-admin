@@ -12,5 +12,5 @@ func createDb(t *testing.T) (*sql.DB, postgresql.Store) {
 	if err != nil {
 		t.Fatalf("error connecting to postgres: %s", err)
 	}
-	return db, postgresql.NewStore(db, connUrl)
+	return db, postgresql.NewStore(connUrl)
 }

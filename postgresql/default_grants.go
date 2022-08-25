@@ -41,6 +41,10 @@ type DefaultGrants struct {
 	BaseConnectionUrl string
 }
 
+func (g *DefaultGrants) Create(grant DefaultGrant) (*DefaultGrant, error) {
+	return g.Update(grant.Key(), grant)
+}
+
 func (g *DefaultGrants) Read(key DefaultGrantKey) (*DefaultGrant, error) {
 	db, err := OpenDatabase(g.BaseConnectionUrl, key.Database)
 	if err != nil {
@@ -56,19 +60,6 @@ func (g *DefaultGrants) Read(key DefaultGrantKey) (*DefaultGrant, error) {
 	}
 	grant.SetId()
 	return &grant, nil
-}
-
-func (g *DefaultGrants) Exists(grant DefaultGrant) (bool, error) {
-	existing, err := g.Read(grant.Key())
-	return existing != nil, err
-}
-
-func (g *DefaultGrants) Create(grant DefaultGrant) (*DefaultGrant, error) {
-	return g.Update(grant.Key(), grant)
-}
-
-func (g *DefaultGrants) Ensure(grant DefaultGrant) (*DefaultGrant, error) {
-	return g.Update(grant.Key(), grant)
 }
 
 func (g *DefaultGrants) Update(key DefaultGrantKey, grant DefaultGrant) (*DefaultGrant, error) {

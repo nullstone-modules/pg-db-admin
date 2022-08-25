@@ -26,10 +26,11 @@ func GrantDbAccess(store postgresql.Store, username, databaseName string) error 
 func grantRole(store postgresql.Store, username, databaseOwner string) error {
 	log.Printf("Granting %q membership to %q", username, databaseOwner)
 	newRoleGrant := postgresql.RoleMember{
-		Member: username,
-		Target: databaseOwner,
+		Member:      username,
+		Target:      databaseOwner,
+		UseExisting: true,
 	}
-	if _, err := store.RoleMembers.Ensure(newRoleGrant); err != nil {
+	if _, err := store.RoleMembers.Create(newRoleGrant); err != nil {
 		return fmt.Errorf("error granting role grant for %q to %q: %w", newRoleGrant.Member, newRoleGrant.Target, err)
 	}
 	return nil
@@ -42,7 +43,7 @@ func grantDefaultPrivileges(store postgresql.Store, roleName, databaseName, targ
 		Database: databaseName,
 		Target:   targetName,
 	}
-	_, err := store.DefaultGrants.Ensure(priv)
+	_, err := store.DefaultGrants.Update(priv.Key(), priv)
 	return err
 }
 
@@ -52,6 +53,6 @@ func grantDbAndSchemaPrivileges(store postgresql.Store, roleName, databaseName s
 		Role:     roleName,
 		Database: databaseName,
 	}
-	_, err := store.SchemaPrivileges.Ensure(priv)
+	_, err := store.SchemaPrivileges.Update(priv.Key(), priv)
 	return err
 }

@@ -18,6 +18,10 @@ type RoleMember struct {
 
 	// WithAdminOption permits Member to grant it to others
 	WithAdminOption bool `json:"withAdminOption"`
+
+	// Do not error if trying to create a role membership that already exists
+	// Instead, return the existing
+	UseExisting bool `json:"useExisting"`
 }
 
 type RoleMemberKey struct {
@@ -29,6 +33,36 @@ var _ rest.DataAccess[RoleMemberKey, RoleMember] = &RoleMembers{}
 
 type RoleMembers struct {
 	BaseConnectionUrl string
+}
+
+func (r *RoleMembers) Create(membership RoleMember) (*RoleMember, error) {
+	if membership.UseExisting {
+		key := RoleMemberKey{
+			Member: membership.Member,
+			Target: membership.Target,
+		}
+		if existing, err := r.Read(key); err != nil {
+			return nil, err
+		} else if existing != nil {
+			log.Printf("[Create] Role membership (role=%s, member=%s) already exists\n", key.Target, key.Member)
+			return existing, nil
+		}
+	}
+
+	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	sq := fmt.Sprintf("GRANT %s TO %s", pq.QuoteIdentifier(membership.Target), pq.QuoteIdentifier(membership.Member))
+	if membership.WithAdminOption {
+		sq = sq + " WITH ADMIN OPTION"
+	}
+
+	log.Printf("Creating role membership (role=%s, member=%s)\n", membership.Target, membership.Member)
+	_, err = db.Exec(sq)
+	return &membership, err
 }
 
 func (r *RoleMembers) Read(key RoleMemberKey) (*RoleMember, error) {
@@ -45,56 +79,22 @@ pg_get_userbyid(member) as role,
 FROM pg_auth_members
 WHERE pg_get_userbyid(member) = $1 AND pg_get_userbyid(roleid) = $2`
 
-	grant := RoleMember{
+	membership := RoleMember{
 		Member: key.Member,
 		Target: key.Target,
 	}
 	row := db.QueryRow(sq, key.Member, key.Target)
-	if err := row.Scan(&grant.Member, &grant.Target, &grant.WithAdminOption); err != nil {
+	if err := row.Scan(&membership.Member, &membership.Target, &membership.WithAdminOption); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return &grant, nil
+	return &membership, nil
 }
 
-func (r *RoleMembers) Exists(grant RoleMember) (bool, error) {
-	existing, err := r.Read(RoleMemberKey{
-		Member: grant.Member,
-		Target: grant.Target,
-	})
-	return existing != nil, err
-}
-
-func (r *RoleMembers) Create(grant RoleMember) (*RoleMember, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
-	sq := fmt.Sprintf("GRANT %s TO %s", pq.QuoteIdentifier(grant.Target), pq.QuoteIdentifier(grant.Member))
-	if grant.WithAdminOption {
-		sq = sq + " WITH ADMIN OPTION"
-	}
-
-	_, err = db.Exec(sq)
-	return &grant, err
-}
-
-func (r *RoleMembers) Ensure(grant RoleMember) (*RoleMember, error) {
-	if exists, err := r.Exists(grant); exists {
-		log.Printf("role grant %q => %q already exists\n", grant.Member, grant.Target)
-		return &grant, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("error checking for role grant %q => %q: %w", grant.Member, grant.Target, err)
-	}
-	return r.Create(grant)
-}
-
-func (r *RoleMembers) Update(key RoleMemberKey, grant RoleMember) (*RoleMember, error) {
-	return &grant, nil
+func (r *RoleMembers) Update(key RoleMemberKey, membership RoleMember) (*RoleMember, error) {
+	return &membership, nil
 }
 
 func (r *RoleMembers) Drop(key RoleMemberKey) (bool, error) {

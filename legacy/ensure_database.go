@@ -9,10 +9,15 @@ import (
 func EnsureDatabase(store postgresql.Store, newDatabase postgresql.Database) error {
 	log.Printf("ensuring database %q\n", newDatabase.Name)
 
-	// Create a role with the same name as the database to give ownership
-	if _, err := store.Roles.Ensure(postgresql.Role{Name: newDatabase.Owner}); err != nil {
-		return fmt.Errorf("error ensuring database owner role: %w", err)
+	// Create a ownerRole with the same name as the database to give ownership
+	ownerRole := postgresql.Role{
+		Name:        newDatabase.Owner,
+		UseExisting: true,
 	}
-	_, err := store.Databases.Ensure(newDatabase)
+	if _, err := store.Roles.Create(ownerRole); err != nil {
+		return fmt.Errorf("error ensuring database owner ownerRole: %w", err)
+	}
+	newDatabase.UseExisting = true
+	_, err := store.Databases.Create(newDatabase)
 	return err
 }

@@ -22,6 +22,10 @@ type Database struct {
 	ConnectionLimit    int    `json:"connectionLimit"`
 	IsTemplate         bool   `json:"isTemplate"`
 	DisableConnections bool   `json:"disableConnections"`
+
+	// Do not error if trying to create a database that already exists
+	// Instead, read the existing and return
+	UseExisting bool `json:"useExisting"`
 }
 
 var _ rest.DataAccess[string, Database] = &Databases{}
@@ -30,30 +34,16 @@ type Databases struct {
 	BaseConnectionUrl string
 }
 
-func (d *Databases) Read(key string) (*Database, error) {
-	db, err := OpenDatabase(d.BaseConnectionUrl, "")
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
-	var owner string
-	row := db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, key)
-	if err := row.Scan(&owner); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &Database{Name: key, Owner: owner}, nil
-}
-
-func (d *Databases) Exists(obj Database) (bool, error) {
-	existing, err := d.Read(obj.Name)
-	return existing != nil, err
-}
-
 func (d *Databases) Create(obj Database) (*Database, error) {
+	if obj.UseExisting {
+		if existing, err := d.Read(obj.Name); err != nil {
+			return nil, err
+		} else if existing != nil {
+			log.Printf("[Create] Database %q already exists, updating...\n", obj.Name)
+			return d.Update(obj.Name, obj)
+		}
+	}
+
 	db, err := OpenDatabase(d.BaseConnectionUrl, "")
 	if err != nil {
 		return nil, err
@@ -74,10 +64,9 @@ func (d *Databases) Create(obj Database) (*Database, error) {
 		}
 	}
 
-	sq := d.generateCreateSql(obj, info.SupportedFeatures)
 	log.Printf("Creating database %q, assigning owner to service user %q\n", obj.Name, obj.Owner)
 	errs := make([]error, 0)
-	if _, err := db.Exec(sq); err != nil {
+	if _, err := db.Exec(d.generateCreateSql(obj, info.SupportedFeatures)); err != nil {
 		errs = append(errs, fmt.Errorf("error creating database %q: %w", obj.Name, err))
 	}
 	if err := grant.Revoke(db); err != nil {
@@ -89,13 +78,22 @@ func (d *Databases) Create(obj Database) (*Database, error) {
 	return &obj, nil
 }
 
-func (d *Databases) Ensure(obj Database) (*Database, error) {
-	if existing, err := d.Read(obj.Name); err != nil {
+func (d *Databases) Read(key string) (*Database, error) {
+	db, err := OpenDatabase(d.BaseConnectionUrl, "")
+	if err != nil {
 		return nil, err
-	} else if existing != nil {
-		return existing, nil
 	}
-	return d.Create(obj)
+	defer db.Close()
+
+	var owner string
+	row := db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, key)
+	if err := row.Scan(&owner); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &Database{Name: key, Owner: owner}, nil
 }
 
 func (d *Databases) Update(key string, obj Database) (*Database, error) {

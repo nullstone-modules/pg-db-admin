@@ -44,15 +44,17 @@ func TestFull(t *testing.T) {
 		}
 		db, err := sql.Open("postgres", u.String())
 		require.NoError(t, err, fmt.Sprintf("connecting to %q", database))
-		return db, postgresql.NewStore(db, u.String())
+		return db, postgresql.NewStore(u.String())
 	}
 
 	ensureFull := func(t *testing.T, store postgresql.Store, database postgresql.Database, user postgresql.Role, testSuffix string) {
-		_, err := store.Roles.Ensure(postgresql.Role{Name: database.Owner})
+		_, err := store.Roles.Create(postgresql.Role{Name: database.Owner, UseExisting: true})
 		require.NoErrorf(t, err, "ensure database owner role %s", testSuffix)
-		_, err = store.Databases.Ensure(database)
+		database.UseExisting = true
+		_, err = store.Databases.Create(database)
 		require.NoErrorf(t, err, "ensure database %s", testSuffix)
-		_, err = store.Roles.Ensure(user)
+		user.UseExisting = true
+		_, err = store.Roles.Create(user)
 		require.NoErrorf(t, err, "ensure user %s", testSuffix)
 		require.NoErrorf(t, legacy.GrantDbAccess(store, user.Name, database.Name), "grant db access %s", testSuffix)
 	}

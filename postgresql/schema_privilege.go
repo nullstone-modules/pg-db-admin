@@ -33,6 +33,10 @@ type SchemaPrivileges struct {
 	BaseConnectionUrl string
 }
 
+func (r *SchemaPrivileges) Create(obj SchemaPrivilege) (*SchemaPrivilege, error) {
+	return r.Update(obj.Key(), obj)
+}
+
 func (r *SchemaPrivileges) Read(key SchemaPrivilegeKey) (*SchemaPrivilege, error) {
 	db, err := OpenDatabase(r.BaseConnectionUrl, key.Database)
 	if err != nil {
@@ -46,19 +50,6 @@ func (r *SchemaPrivileges) Read(key SchemaPrivilegeKey) (*SchemaPrivilege, error
 		Database: key.Database,
 	}
 	return &obj, nil
-}
-
-func (r *SchemaPrivileges) Exists(obj SchemaPrivilege) (bool, error) {
-	existing, err := r.Read(obj.Key())
-	return existing != nil, err
-}
-
-func (r *SchemaPrivileges) Create(obj SchemaPrivilege) (*SchemaPrivilege, error) {
-	return r.Update(obj.Key(), obj)
-}
-
-func (r *SchemaPrivileges) Ensure(obj SchemaPrivilege) (*SchemaPrivilege, error) {
-	return r.Update(obj.Key(), obj)
 }
 
 func (r *SchemaPrivileges) Update(key SchemaPrivilegeKey, obj SchemaPrivilege) (*SchemaPrivilege, error) {

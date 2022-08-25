@@ -19,7 +19,7 @@ func TestDatabase(t *testing.T) {
 
 	databaseName := "database-test-database"
 
-	ownerRole, err := store.Roles.Ensure(postgresql.Role{Name: databaseName})
+	ownerRole, err := store.Roles.Create(postgresql.Role{Name: databaseName, UseExisting: true})
 	require.NoError(t, err, "error creating owner role")
 
 	_, err = store.Databases.Create(postgresql.Database{Name: databaseName, Owner: ownerRole.Name})
