@@ -11,7 +11,7 @@ require (
 	github.com/go-multierror/multierror v1.0.2
 	github.com/gorilla/mux v1.8.0
 	github.com/lib/pq v1.10.2
-	github.com/nullstone-io/go-lambda-api-sdk v0.0.0-20220824185020-bbb8cee7193c
+	github.com/nullstone-io/go-lambda-api-sdk v0.0.0-20220829133353-4a8c1d845640
 	github.com/nullstone-io/go-rest-api v0.0.0-20220825125340-0b8192abdaf5
 	github.com/stretchr/testify v1.8.0
 )
