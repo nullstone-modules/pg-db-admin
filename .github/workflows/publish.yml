@@ -4,6 +4,10 @@ on:
     tags:
       - 'v*'
 
+env:
+  NULLSTONE_ORG: nullstone
+  NULLSTONE_API_KEY: ${{ secrets.NULLSTONE_API_KEY }}
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -15,10 +19,13 @@ jobs:
     steps:
       # Checkout the repository to the GitHub Actions runner
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Go
         uses: actions/setup-go@v2
+
+      - name: Set up Nullstone
+        uses: nullstone-io/setup-nullstone-action@v0
 
       - name: Build binaries into packages
         run: |
@@ -30,12 +37,8 @@ jobs:
         id: version
         run: echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
 
-      # Publish to nullstone
-      - name: Publish AWS module
-        env:
-          NULLSTONE_ORG: nullstone
-          NULLSTONE_MODULE: aws-pg-db-admin
-          RELEASE_VERSION: ${{ steps.version.outputs.tag }}
-        run: |-
-          curl -XPOST -F "file=@aws-module.tgz" -H "X-Nullstone-Key: ${{ secrets.NULLSTONE_API_KEY }}" \
-            https://api.nullstone.io/orgs/${NULLSTONE_ORG}/modules/${NULLSTONE_MODULE}/versions?version=${RELEASE_VERSION}
+      - id: publish
+        name: Publish
+        working_directory: aws/tf/
+        run: |
+          nullstone modules publish --version=${{ steps.version.outputs.tag }}
