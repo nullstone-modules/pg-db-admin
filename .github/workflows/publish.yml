@@ -39,6 +39,6 @@ jobs:
 
       - id: publish
         name: Publish
-        working_directory: aws/tf/
+        working-directory: aws/tf/
         run: |
           nullstone modules publish --version=${{ steps.version.outputs.tag }}
