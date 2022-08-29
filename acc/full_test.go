@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/lib/pq"
+	"github.com/nullstone-modules/pg-db-admin/legacy"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
-	"github.com/nullstone-modules/pg-db-admin/workflows"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/url"
@@ -34,7 +34,7 @@ func TestFull(t *testing.T) {
 		Password: "second-password",
 	}
 
-	connect := func(t *testing.T, database, user, password string) *sql.DB {
+	connect := func(t *testing.T, database, user, password string) (*sql.DB, postgresql.Store) {
 		u := url.URL{
 			Scheme:   "postgres",
 			User:     url.UserPassword(user, password),
@@ -44,34 +44,40 @@ func TestFull(t *testing.T) {
 		}
 		db, err := sql.Open("postgres", u.String())
 		require.NoError(t, err, fmt.Sprintf("connecting to %q", database))
-		return db
+		return db, postgresql.NewStore(u.String())
+	}
+
+	ensureFull := func(t *testing.T, store postgresql.Store, database postgresql.Database, user postgresql.Role, testSuffix string) {
+		_, err := store.Roles.Create(postgresql.Role{Name: database.Owner, UseExisting: true})
+		require.NoErrorf(t, err, "ensure database owner role %s", testSuffix)
+		database.UseExisting = true
+		_, err = store.Databases.Create(database)
+		require.NoErrorf(t, err, "ensure database %s", testSuffix)
+		user.UseExisting = true
+		_, err = store.Roles.Create(user)
+		require.NoErrorf(t, err, "ensure user %s", testSuffix)
+		require.NoErrorf(t, legacy.GrantDbAccess(store, user.Name, database.Name), "grant db access %s", testSuffix)
 	}
 
 	t.Run("initial setup", func(t *testing.T) {
 		// This connection is used by the admin user from the `postgres` db
-		rootDb := connect(t, "postgres", "pda", "pda")
+		rootDb, store := connect(t, "postgres", "pda", "pda")
 		defer rootDb.Close()
 
-		// This connection is used by the admin user from the service db
-		db := connect(t, newDatabase.Name, "pda", "pda")
-		defer db.Close()
-
 		// Run through creation with first user
-		require.NoError(t, workflows.EnsureDatabase(rootDb, newDatabase), "ensure database")
-		require.NoError(t, workflows.EnsureUser(rootDb, newUser), "ensure user")
-		require.NoError(t, workflows.GrantDbAccess(rootDb, db, newUser, newDatabase), "grant db access")
+		ensureFull(t, store, newDatabase, newUser, "#1")
 	})
 
 	time.Sleep(500 * time.Millisecond)
 
 	t.Run("connect with new user", func(t *testing.T) {
-		db := connect(t, newDatabase.Name, newUser.Name, newUser.Password)
+		db, _ := connect(t, newDatabase.Name, newUser.Name, newUser.Password)
 		defer db.Close()
 		require.NoError(t, db.Ping(), "connect to app db using newly created user")
 	})
 
 	t.Run("create schema using new user", func(t *testing.T) {
-		db := connect(t, newDatabase.Name, newUser.Name, newUser.Password)
+		db, _ := connect(t, newDatabase.Name, newUser.Name, newUser.Password)
 		defer db.Close()
 
 		// Attempt to create schema objects
@@ -80,7 +86,7 @@ func TestFull(t *testing.T) {
 	})
 
 	t.Run("insert data using new user", func(t *testing.T) {
-		db := connect(t, newDatabase.Name, newUser.Name, newUser.Password)
+		db, _ := connect(t, newDatabase.Name, newUser.Name, newUser.Password)
 		defer db.Close()
 
 		// Attempt to insert records
@@ -94,7 +100,7 @@ func TestFull(t *testing.T) {
 	})
 
 	t.Run("retrieve data using new user", func(t *testing.T) {
-		db := connect(t, newDatabase.Name, newUser.Name, newUser.Password)
+		db, _ := connect(t, newDatabase.Name, newUser.Name, newUser.Password)
 		defer db.Close()
 
 		// Attempt to retrieve them
@@ -113,20 +119,14 @@ func TestFull(t *testing.T) {
 
 	t.Run("create second user after schema and data creation", func(t *testing.T) {
 		// This connection is used by the admin user from the `postgres` db
-		rootDb := connect(t, "postgres", "pda", "pda")
+		rootDb, store := connect(t, "postgres", "pda", "pda")
 		defer rootDb.Close()
 
-		// This connection is used by the admin user from the service db
-		db := connect(t, newDatabase.Name, "pda", "pda")
-		defer db.Close()
-
-		require.NoError(t, workflows.EnsureDatabase(rootDb, newDatabase), "ensure database #2")
-		require.NoError(t, workflows.EnsureUser(rootDb, secondUser), "ensure user #2")
-		require.NoError(t, workflows.GrantDbAccess(rootDb, db, secondUser, newDatabase), "grant db access #2")
+		ensureFull(t, store, newDatabase, secondUser, "#2")
 	})
 
 	t.Run("retrieve data from second user", func(t *testing.T) {
-		db := connect(t, newDatabase.Name, secondUser.Name, secondUser.Password)
+		db, _ := connect(t, newDatabase.Name, secondUser.Name, secondUser.Password)
 		defer db.Close()
 
 		// Attempt to retrieve them

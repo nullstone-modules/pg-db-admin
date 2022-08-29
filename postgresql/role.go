@@ -5,77 +5,95 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/lib/pq"
+	"github.com/nullstone-io/go-rest-api"
 	"log"
 )
 
 type Role struct {
-	Name     string
-	Password string
+	Name     string `json:"name"`
+	Password string `json:"password"`
+
+	// Do not error if trying to create a role that already exists
+	// Instead, read the existing, set the password, and return
+	UseExisting bool `json:"useExisting"`
 }
 
-func (r Role) Ensure(db *sql.DB) error {
-	if exists, err := r.Exists(db); exists {
-		log.Printf("Role %q already exists\n", r.Name)
-		if r.Password != "" {
-			log.Printf("Setting password for %q\n", r.Name)
-			if err := r.setPassword(db); err != nil {
-				return err
-			}
-			log.Printf("Password set for %q\n", r.Name)
+var _ rest.DataAccess[string, Role] = &Roles{}
+
+type Roles struct {
+	BaseConnectionUrl string
+}
+
+func (r *Roles) Create(role Role) (*Role, error) {
+	if role.UseExisting {
+		if existing, err := r.Read(role.Name); err != nil {
+			return nil, err
+		} else if existing != nil {
+			log.Printf("[Create] Role %q already exists, updating...\n", role.Name)
+			return r.Update(role.Name, role)
 		}
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("error checking for role %q: %w", r.Name, err)
 	}
-	if err := r.Create(db); err != nil {
-		return fmt.Errorf("error creating role %q: %w", r.Name, err)
+
+	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	defer db.Close()
+
+	fmt.Printf("Creating role %q\n", role.Name)
+	if _, err := db.Exec(r.generateCreateSql(role)); err != nil {
+		return nil, fmt.Errorf("error creating user %q: %w", role.Name, err)
+	}
+	return &role, nil
 }
 
-func (r Role) Create(db *sql.DB) error {
-	fmt.Printf("Creating role %q\n", r.Name)
-	sq := r.generateCreateSql()
-	if _, err := db.Exec(sq); err != nil {
-		return fmt.Errorf("error creating user %q: %w", r.Name, err)
+func (r *Roles) Read(key string) (*Role, error) {
+	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	if err != nil {
+		return nil, err
 	}
-	return nil
-}
+	defer db.Close()
 
-func (r Role) generateCreateSql() string {
-	b := bytes.NewBufferString("CREATE ROLE ")
-	fmt.Fprint(b, pq.QuoteIdentifier(r.Name), " WITH LOGIN")
-	if r.Password != "" {
-		fmt.Fprint(b, " PASSWORD ")
-		fmt.Fprint(b, pq.QuoteLiteral(r.Password))
-	}
-	return b.String()
-}
-
-func (r Role) Exists(db *sql.DB) (bool, error) {
-	check := Role{Name: r.Name}
-	if err := check.Read(db); err != nil {
+	var name string
+	row := db.QueryRow(`SELECT rolname from pg_roles WHERE rolname = $1`, key)
+	if err := row.Scan(&name); err != nil {
 		if err == sql.ErrNoRows {
-			return false, nil
+			return nil, nil
 		}
-		return false, err
+		return nil, err
 	}
+	return &Role{Name: name}, nil
+}
+
+func (r *Roles) Update(key string, role Role) (*Role, error) {
+	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	if role.Password == "" {
+		return &role, nil
+	}
+	log.Printf("Setting password for %q\n", role.Name)
+	updateSql := fmt.Sprintf(`ALTER ROLE %s WITH PASSWORD %s`, pq.QuoteIdentifier(role.Name), pq.QuoteLiteral(role.Password))
+	if _, err := db.Exec(updateSql); err != nil {
+		return nil, fmt.Errorf("error setting password: %w", err)
+	}
+	log.Printf("Password set for %q\n", role.Name)
+	return &role, nil
+}
+
+func (r *Roles) Drop(key string) (bool, error) {
 	return true, nil
 }
 
-func (r Role) Read(db *sql.DB) error {
-	var name string
-	row := db.QueryRow(`SELECT rolname from pg_roles WHERE rolname = $1`, r.Name)
-	if err := row.Scan(&name); err != nil {
-		return err
+func (*Roles) generateCreateSql(role Role) string {
+	b := bytes.NewBufferString("CREATE ROLE ")
+	fmt.Fprint(b, pq.QuoteIdentifier(role.Name), " WITH LOGIN")
+	if role.Password != "" {
+		fmt.Fprint(b, " PASSWORD ")
+		fmt.Fprint(b, pq.QuoteLiteral(role.Password))
 	}
-	return nil
-}
-
-func (r Role) setPassword(db *sql.DB) error {
-	_, err := db.Exec(fmt.Sprintf(`ALTER ROLE %s WITH PASSWORD %s`, pq.QuoteIdentifier(r.Name), pq.QuoteLiteral(r.Password)))
-	if err != nil {
-		return fmt.Errorf("error setting password: %w", err)
-	}
-	return nil
+	return b.String()
 }

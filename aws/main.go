@@ -2,102 +2,60 @@ package main
 
 import (
 	"context"
-	"database/sql"
+	"encoding/json"
 	"fmt"
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
-	"github.com/nullstone-modules/pg-db-admin/postgresql"
-	"github.com/nullstone-modules/pg-db-admin/workflows"
-	"net/url"
+	"github.com/nullstone-io/go-lambda-api-sdk/function_url"
+	"github.com/nullstone-modules/pg-db-admin/api"
+	"github.com/nullstone-modules/pg-db-admin/legacy"
+	"log"
 	"os"
 )
 
 const (
 	dbConnUrlSecretIdEnvVar = "DB_CONN_URL_SECRET_ID"
-
-	eventTypeCreateDatabase = "create-database"
-	eventTypeCreateUser     = "create-user"
-	eventTypeCreateDbAccess = "create-db-access"
 )
 
-type AdminEvent struct {
-	Type     string            `json:"type"`
-	Metadata map[string]string `json:"metadata"`
-}
-
 func main() {
-	lambda.Start(HandleRequest)
+	dbConnUrl, err := fetchConnUrlFromSecrets(context.TODO())
+	if err != nil {
+		log.Println(err.Error())
+	}
+	lambda.Start(HandleRequest(dbConnUrl))
 }
 
-func HandleRequest(ctx context.Context, event AdminEvent) error {
-	connUrl, err := getConnectionUrl(ctx)
-	if err != nil {
-		return err
-	}
-
-	db, err := sql.Open("postgres", connUrl)
-	if err != nil {
-		return fmt.Errorf("error connecting to db: %w", err)
-	}
-	defer db.Close()
-
-	switch event.Type {
-	case eventTypeCreateDatabase:
-		newDatabase := postgresql.Database{}
-		newDatabase.Name, _ = event.Metadata["databaseName"]
-		if newDatabase.Name == "" {
-			return fmt.Errorf("cannot create database: databaseName is required")
+func HandleRequest(dbConnUrl string) func(ctx context.Context, rawEvent json.RawMessage) (any, error) {
+	return func(ctx context.Context, rawEvent json.RawMessage) (any, error) {
+		if ok, event := isFunctionUrlEvent(rawEvent); ok {
+			router := api.CreateRouter(dbConnUrl)
+			log.Println("Function URL Event", event.RequestContext.HTTP.Method, event.RequestContext.HTTP.Path)
+			res, err := function_url.Handle(ctx, event, router)
+			log.Println("Function URL Response", res.StatusCode)
+			return res, err
 		}
-		newDatabase.Owner = newDatabase.Name
-		return workflows.EnsureDatabase(db, newDatabase)
-	case eventTypeCreateUser:
-		newUser := postgresql.Role{}
-		newUser.Name, _ = event.Metadata["username"]
-		if newUser.Name == "" {
-			return fmt.Errorf("cannot create user: username is required")
+		if ok, event := legacy.IsEvent(rawEvent); ok {
+			log.Println("Legacy Event", event.Type)
+			return legacy.Handle(ctx, event, dbConnUrl)
 		}
-		newUser.Password, _ = event.Metadata["password"]
-		if newUser.Password == "" {
-			return fmt.Errorf("cannot create user: password is required")
-		}
-		return workflows.EnsureUser(db, newUser)
-	case eventTypeCreateDbAccess:
-		user := postgresql.Role{}
-		user.Name, _ = event.Metadata["username"]
-		if user.Name == "" {
-			return fmt.Errorf("cannot grant user access to db: username is required")
-		}
-		database := postgresql.Database{}
-		database.Name, _ = event.Metadata["databaseName"]
-		if database.Name == "" {
-			return fmt.Errorf("cannot grant user access to db: database name is required")
-		}
-
-		appDb, err := getAppDb(connUrl, database.Name)
-		if err != nil {
-			return fmt.Errorf("error connecting to app db %q: %w", database.Name, err)
-		}
-
-		return workflows.GrantDbAccess(db, appDb, user, database)
-	default:
-		return fmt.Errorf("unknown event %q", event.Type)
+		log.Println("Unknown Event", string(rawEvent))
+		return nil, nil
 	}
 }
 
-func getAppDb(connUrl string, databaseName string) (*sql.DB, error) {
-	u, err := url.Parse(connUrl)
-	if err != nil {
-		return nil, fmt.Errorf("invalid connection url %q: %w", connUrl, err)
+func isFunctionUrlEvent(raw json.RawMessage) (bool, events.LambdaFunctionURLRequest) {
+	var event events.LambdaFunctionURLRequest
+	if err := json.Unmarshal(raw, &event); err != nil {
+		return false, event
 	}
-	u.Path = fmt.Sprintf("/%s", url.PathEscape(databaseName))
-
-	return sql.Open("postgres", u.String())
+	return event.RequestContext.HTTP.Method != "", event
 }
 
-func getConnectionUrl(ctx context.Context) (string, error) {
-	awsConfig, err := config.LoadDefaultConfig(context.TODO())
+func fetchConnUrlFromSecrets(ctx context.Context) (string, error) {
+	awsConfig, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error accessing aws: %w", err)
 	}
