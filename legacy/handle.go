@@ -36,6 +36,7 @@ func Handle(ctx context.Context, event AdminEvent, dbConnUrl string) (any, error
 		if newDatabase.Name == "" {
 			return nil, fmt.Errorf("cannot create database: databaseName is required")
 		}
+		newDatabase.Owner = newDatabase.Name
 		return nil, EnsureDatabase(store, newDatabase)
 	case eventTypeCreateUser:
 		newUser := postgresql.Role{}
