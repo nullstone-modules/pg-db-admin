@@ -43,4 +43,6 @@ jobs:
         name: Publish
         working-directory: aws/tf/
         run: |
-          nullstone modules publish --version=${{ steps.version.outputs.tag }}
+          nullstone modules publish \
+            --version=${{ steps.version.outputs.tag }} \
+            --include=files/pg-db-admin.zip
