@@ -8,7 +8,7 @@ resource "aws_iam_access_key" "invoker" {
 }
 
 resource "aws_iam_user_policy" "invoker" {
-  user = aws_iam_user.invoker.name
+  user   = aws_iam_user.invoker.name
   policy = data.aws_iam_policy_document.invoker.json
 }
 

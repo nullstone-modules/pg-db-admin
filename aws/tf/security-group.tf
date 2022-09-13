@@ -1,8 +1,8 @@
 resource "aws_security_group" "db_admin" {
-  name        = "db-admin/${var.name}"
-  tags        = var.tags
-  vpc_id      = var.network.vpc_id
-#  description = "Security group attached to DB Admin for ${var.name}"
+  name   = "db-admin/${var.name}"
+  tags   = var.tags
+  vpc_id = var.network.vpc_id
+  #  description = "Security group attached to DB Admin for ${var.name}"
 }
 
 resource "aws_security_group_rule" "this-to-world-https" {

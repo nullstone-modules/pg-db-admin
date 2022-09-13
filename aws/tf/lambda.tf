@@ -26,13 +26,22 @@ resource "aws_lambda_function_url" "db_admin" {
   authorization_type = "AWS_IAM"
 }
 
+// NOTE: This resource ensures that the invoker user is properly created
+//  IAM is eventually consistent and the aws_lambda_permission fails because the user is not "ready" yet
+resource "time_sleep" "wait_for_invoker" {
+  create_duration = "5s"
+
+  triggers = {
+    invoker_arn = aws_iam_user.invoker.arn
+  }
+}
+
 // Allow invoker to invoke function url
 // See https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html
-// TODO: This fails if the invoker isn't fully created yet; how can we make it work?
 resource "aws_lambda_permission" "db_admin_invoke" {
   statement_id_prefix    = "AllowDbAdminInvoke"
   function_name          = aws_lambda_function.db_admin.function_name
   action                 = "lambda:InvokeFunctionUrl"
-  principal              = aws_iam_user.invoker.arn
+  principal              = time_sleep.wait_for_invoker.triggers["invoker_arn"]
   function_url_auth_type = "AWS_IAM"
 }
