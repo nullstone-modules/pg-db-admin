@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func createDb(t *testing.T) (*sql.DB, postgresql.Store) {
+func createDb(t *testing.T) (*sql.DB, *postgresql.Store) {
 	connUrl := "postgres://pda:pda@localhost:8432/postgres?sslmode=disable"
 	db, err := sql.Open("postgres", connUrl)
 	if err != nil {

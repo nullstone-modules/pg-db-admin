@@ -8,8 +8,9 @@ import (
 )
 
 // SchemaPrivilege grants to Role on Database
-//   CREATE|USAGE on public schema
-//   CREATE|CONNECT|TEMPORARY on database
+//
+//	CREATE|USAGE on public schema
+//	CREATE|CONNECT|TEMPORARY on database
 type SchemaPrivilege struct {
 	Role     string `json:"role"`
 	Database string `json:"database"`
