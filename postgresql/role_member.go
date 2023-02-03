@@ -32,7 +32,7 @@ type RoleMemberKey struct {
 var _ rest.DataAccess[RoleMemberKey, RoleMember] = &RoleMembers{}
 
 type RoleMembers struct {
-	BaseConnectionUrl string
+	DbOpener DbOpener
 }
 
 func (r *RoleMembers) Create(membership RoleMember) (*RoleMember, error) {
@@ -49,7 +49,7 @@ func (r *RoleMembers) Create(membership RoleMember) (*RoleMember, error) {
 		}
 	}
 
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (r *RoleMembers) Create(membership RoleMember) (*RoleMember, error) {
 }
 
 func (r *RoleMembers) Read(key RoleMemberKey) (*RoleMember, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}

@@ -38,7 +38,7 @@ type DefaultGrantKey struct {
 var _ rest.DataAccess[DefaultGrantKey, DefaultGrant] = &DefaultGrants{}
 
 type DefaultGrants struct {
-	BaseConnectionUrl string
+	DbOpener DbOpener
 }
 
 func (g *DefaultGrants) Create(grant DefaultGrant) (*DefaultGrant, error) {
@@ -46,7 +46,7 @@ func (g *DefaultGrants) Create(grant DefaultGrant) (*DefaultGrant, error) {
 }
 
 func (g *DefaultGrants) Read(key DefaultGrantKey) (*DefaultGrant, error) {
-	db, err := OpenDatabase(g.BaseConnectionUrl, key.Database)
+	db, err := g.DbOpener.OpenDatabase(key.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (g *DefaultGrants) Read(key DefaultGrantKey) (*DefaultGrant, error) {
 }
 
 func (g *DefaultGrants) Update(key DefaultGrantKey, grant DefaultGrant) (*DefaultGrant, error) {
-	db, err := OpenDatabase(g.BaseConnectionUrl, grant.Database)
+	db, err := g.DbOpener.OpenDatabase(grant.Database)
 	if err != nil {
 		return nil, err
 	}

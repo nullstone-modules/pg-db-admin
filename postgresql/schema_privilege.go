@@ -31,7 +31,7 @@ type SchemaPrivilegeKey struct {
 var _ rest.DataAccess[SchemaPrivilegeKey, SchemaPrivilege] = &SchemaPrivileges{}
 
 type SchemaPrivileges struct {
-	BaseConnectionUrl string
+	DbOpener DbOpener
 }
 
 func (r *SchemaPrivileges) Create(obj SchemaPrivilege) (*SchemaPrivilege, error) {
@@ -39,7 +39,7 @@ func (r *SchemaPrivileges) Create(obj SchemaPrivilege) (*SchemaPrivilege, error)
 }
 
 func (r *SchemaPrivileges) Read(key SchemaPrivilegeKey) (*SchemaPrivilege, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, key.Database)
+	db, err := r.DbOpener.OpenDatabase(key.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (r *SchemaPrivileges) Read(key SchemaPrivilegeKey) (*SchemaPrivilege, error
 }
 
 func (r *SchemaPrivileges) Update(key SchemaPrivilegeKey, obj SchemaPrivilege) (*SchemaPrivilege, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, obj.Database)
+	db, err := r.DbOpener.OpenDatabase(obj.Database)
 	if err != nil {
 		return nil, err
 	}

@@ -31,7 +31,7 @@ type Database struct {
 var _ rest.DataAccess[string, Database] = &Databases{}
 
 type Databases struct {
-	BaseConnectionUrl string
+	DbOpener DbOpener
 }
 
 func (d *Databases) Create(obj Database) (*Database, error) {
@@ -44,7 +44,7 @@ func (d *Databases) Create(obj Database) (*Database, error) {
 		}
 	}
 
-	db, err := OpenDatabase(d.BaseConnectionUrl, "")
+	db, err := d.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (d *Databases) Create(obj Database) (*Database, error) {
 }
 
 func (d *Databases) Read(key string) (*Database, error) {
-	db, err := OpenDatabase(d.BaseConnectionUrl, "")
+	db, err := d.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}

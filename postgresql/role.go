@@ -21,7 +21,7 @@ type Role struct {
 var _ rest.DataAccess[string, Role] = &Roles{}
 
 type Roles struct {
-	BaseConnectionUrl string
+	DbOpener DbOpener
 }
 
 func (r *Roles) Create(role Role) (*Role, error) {
@@ -34,7 +34,7 @@ func (r *Roles) Create(role Role) (*Role, error) {
 		}
 	}
 
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (r *Roles) Create(role Role) (*Role, error) {
 }
 
 func (r *Roles) Read(key string) (*Role, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (r *Roles) Read(key string) (*Role, error) {
 }
 
 func (r *Roles) Update(key string, role Role) (*Role, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
