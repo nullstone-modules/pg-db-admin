@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func CreateRouter(dbConnUrl string) *mux.Router {
+func CreateRouter(store *postgresql.Store) *mux.Router {
 	r := mux.NewRouter()
 
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -24,8 +24,6 @@ func CreateRouter(dbConnUrl string) *mux.Router {
 	r.Methods(http.MethodDelete).Path("/skip").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-
-	store := postgresql.NewStore(dbConnUrl)
 
 	databases := &rest.Resource[string, postgresql.Database]{
 		DataAccess: store.Databases,

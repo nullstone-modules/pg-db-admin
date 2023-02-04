@@ -31,6 +31,16 @@ func NewStore(connUrl string) *Store {
 	return store
 }
 
+func (s *Store) Close() {
+	s.Lock()
+	defer s.Unlock()
+
+	for name, conn := range s.connsByDbName {
+		conn.Close()
+		delete(s.connsByDbName, name)
+	}
+}
+
 func (s *Store) OpenDatabase(dbName string) (*sql.DB, error) {
 	s.Lock()
 	defer s.Unlock()

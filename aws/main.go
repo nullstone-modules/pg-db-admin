@@ -12,6 +12,7 @@ import (
 	"github.com/nullstone-io/go-lambda-api-sdk/function_url"
 	"github.com/nullstone-modules/pg-db-admin/api"
 	"github.com/nullstone-modules/pg-db-admin/legacy"
+	"github.com/nullstone-modules/pg-db-admin/postgresql"
 	"log"
 	"os"
 )
@@ -25,13 +26,15 @@ func main() {
 	if err != nil {
 		log.Println(err.Error())
 	}
-	lambda.Start(HandleRequest(dbConnUrl))
+	store := postgresql.NewStore(dbConnUrl)
+	defer store.Close()
+	lambda.Start(HandleRequest(store))
 }
 
-func HandleRequest(dbConnUrl string) func(ctx context.Context, rawEvent json.RawMessage) (any, error) {
+func HandleRequest(store *postgresql.Store) func(ctx context.Context, rawEvent json.RawMessage) (any, error) {
 	return func(ctx context.Context, rawEvent json.RawMessage) (any, error) {
 		if ok, event := isFunctionUrlEvent(rawEvent); ok {
-			router := api.CreateRouter(dbConnUrl)
+			router := api.CreateRouter(store)
 			log.Println("Function URL Event", event.RequestContext.HTTP.Method, event.RequestContext.HTTP.Path)
 			res, err := function_url.Handle(ctx, event, router)
 			log.Println("Function URL Response", res.StatusCode)
@@ -39,7 +42,7 @@ func HandleRequest(dbConnUrl string) func(ctx context.Context, rawEvent json.Raw
 		}
 		if ok, event := legacy.IsEvent(rawEvent); ok {
 			log.Println("Legacy Event", event.Type)
-			return legacy.Handle(ctx, event, dbConnUrl)
+			return legacy.Handle(ctx, event, store)
 		}
 		log.Println("Unknown Event", string(rawEvent))
 		return nil, nil

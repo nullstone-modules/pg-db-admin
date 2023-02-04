@@ -26,9 +26,7 @@ func IsEvent(rawEvent json.RawMessage) (bool, AdminEvent) {
 	return event.Type != "", event
 }
 
-func Handle(ctx context.Context, event AdminEvent, dbConnUrl string) (any, error) {
-	store := postgresql.NewStore(dbConnUrl)
-
+func Handle(ctx context.Context, event AdminEvent, store *postgresql.Store) (any, error) {
 	switch event.Type {
 	case eventTypeCreateDatabase:
 		newDatabase := postgresql.Database{}
