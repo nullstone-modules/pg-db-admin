@@ -22,7 +22,7 @@ type DbOpener interface {
 }
 
 func NewStore(connUrl string) *Store {
-	store := &Store{connUrl: connUrl}
+	store := &Store{connUrl: connUrl, connsByDbName: map[string]*sql.DB{}}
 	store.Databases = &Databases{DbOpener: store}
 	store.Roles = &Roles{DbOpener: store}
 	store.RoleMembers = &RoleMembers{DbOpener: store}
