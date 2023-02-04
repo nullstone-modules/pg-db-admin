@@ -14,8 +14,8 @@ func TestDatabase(t *testing.T) {
 		t.Skip("Set ACC=1 to run e2e tests")
 	}
 
-	db, store := createDb(t)
-	defer db.Close()
+	store := createStore(t)
+	defer store.Close()
 
 	databaseName := "database-test-database"
 

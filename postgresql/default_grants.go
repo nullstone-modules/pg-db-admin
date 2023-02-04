@@ -46,12 +46,6 @@ func (g *DefaultGrants) Create(grant DefaultGrant) (*DefaultGrant, error) {
 }
 
 func (g *DefaultGrants) Read(key DefaultGrantKey) (*DefaultGrant, error) {
-	db, err := g.DbOpener.OpenDatabase(key.Database)
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
 	// TODO: Introspect
 	grant := DefaultGrant{
 		Role:     key.Role,
@@ -67,7 +61,6 @@ func (g *DefaultGrants) Update(key DefaultGrantKey, grant DefaultGrant) (*Defaul
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	info, err := CalcDbConnectionInfo(db)
 	if err != nil {

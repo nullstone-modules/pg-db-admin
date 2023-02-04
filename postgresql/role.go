@@ -38,7 +38,6 @@ func (r *Roles) Create(role Role) (*Role, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	fmt.Printf("Creating role %q\n", role.Name)
 	if _, err := db.Exec(r.generateCreateSql(role)); err != nil {
@@ -52,7 +51,6 @@ func (r *Roles) Read(key string) (*Role, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	var name string
 	row := db.QueryRow(`SELECT rolname from pg_roles WHERE rolname = $1`, key)
@@ -70,7 +68,6 @@ func (r *Roles) Update(key string, role Role) (*Role, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	if role.Password == "" {
 		return &role, nil

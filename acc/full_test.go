@@ -44,7 +44,7 @@ func TestFull(t *testing.T) {
 		}
 		db, err := sql.Open("postgres", u.String())
 		require.NoError(t, err, fmt.Sprintf("connecting to %q", database))
-		return db, postgresql.NewStore(u.String())
+		return db, createStore(t)
 	}
 
 	ensureFull := func(t *testing.T, store *postgresql.Store, database postgresql.Database, user postgresql.Role, testSuffix string) {

@@ -27,7 +27,6 @@ func CalcDbConnectionInfo(db *sql.DB) (*DbInfo, error) {
 	var err error
 
 	if dci.DbVersion, err = detectDbVersion(db); err != nil {
-		db.Close()
 		return nil, fmt.Errorf("error detecting capabilities: %w", err)
 	}
 	dci.SupportedFeatures = CalcSupportedFeatures(dci.DbVersion)

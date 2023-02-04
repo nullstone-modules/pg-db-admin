@@ -39,12 +39,6 @@ func (r *SchemaPrivileges) Create(obj SchemaPrivilege) (*SchemaPrivilege, error)
 }
 
 func (r *SchemaPrivileges) Read(key SchemaPrivilegeKey) (*SchemaPrivilege, error) {
-	db, err := r.DbOpener.OpenDatabase(key.Database)
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
 	// TODO: Introspect
 	obj := SchemaPrivilege{
 		Role:     key.Role,
@@ -58,7 +52,6 @@ func (r *SchemaPrivileges) Update(key SchemaPrivilegeKey, obj SchemaPrivilege) (
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	sq := strings.Join([]string{
 		// CREATE | USAGE
