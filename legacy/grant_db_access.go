@@ -6,7 +6,7 @@ import (
 	"log"
 )
 
-func GrantDbAccess(store postgresql.Store, username, databaseName string) error {
+func GrantDbAccess(store *postgresql.Store, username, databaseName string) error {
 	log.Printf("Granting db access to user %q on database %q\n", username, databaseName)
 
 	database, err := store.Databases.Read(databaseName)
@@ -23,7 +23,7 @@ func GrantDbAccess(store postgresql.Store, username, databaseName string) error 
 }
 
 // grantRole adds user as a member of the database owner role
-func grantRole(store postgresql.Store, username, databaseOwner string) error {
+func grantRole(store *postgresql.Store, username, databaseOwner string) error {
 	log.Printf("Granting %q membership to %q", username, databaseOwner)
 	newRoleGrant := postgresql.RoleMember{
 		Member:      username,
@@ -36,7 +36,7 @@ func grantRole(store postgresql.Store, username, databaseOwner string) error {
 	return nil
 }
 
-func grantDefaultPrivileges(store postgresql.Store, roleName, databaseName, targetName string) error {
+func grantDefaultPrivileges(store *postgresql.Store, roleName, databaseName, targetName string) error {
 	log.Printf("Granting %q default privileges to %q", roleName, targetName)
 	priv := postgresql.DefaultGrant{
 		Role:     roleName,
@@ -47,7 +47,7 @@ func grantDefaultPrivileges(store postgresql.Store, roleName, databaseName, targ
 	return err
 }
 
-func grantDbAndSchemaPrivileges(store postgresql.Store, roleName, databaseName string) error {
+func grantDbAndSchemaPrivileges(store *postgresql.Store, roleName, databaseName string) error {
 	log.Printf("Granting schema and database privileges on %q to %q", databaseName, roleName)
 	priv := postgresql.SchemaPrivilege{
 		Role:     roleName,

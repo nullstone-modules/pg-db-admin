@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-func EnsureUser(store postgresql.Store, newUser postgresql.Role) error {
+func EnsureUser(store *postgresql.Store, newUser postgresql.Role) error {
 	log.Printf("ensuring user %q\n", newUser.Name)
 	newUser.UseExisting = true
 	_, err := store.Roles.Create(newUser)

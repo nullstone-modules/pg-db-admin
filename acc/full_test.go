@@ -34,7 +34,7 @@ func TestFull(t *testing.T) {
 		Password: "second-password",
 	}
 
-	connect := func(t *testing.T, database, user, password string) (*sql.DB, postgresql.Store) {
+	connect := func(t *testing.T, database, user, password string) (*sql.DB, *postgresql.Store) {
 		u := url.URL{
 			Scheme:   "postgres",
 			User:     url.UserPassword(user, password),
@@ -44,10 +44,10 @@ func TestFull(t *testing.T) {
 		}
 		db, err := sql.Open("postgres", u.String())
 		require.NoError(t, err, fmt.Sprintf("connecting to %q", database))
-		return db, postgresql.NewStore(u.String())
+		return db, createStore(t)
 	}
 
-	ensureFull := func(t *testing.T, store postgresql.Store, database postgresql.Database, user postgresql.Role, testSuffix string) {
+	ensureFull := func(t *testing.T, store *postgresql.Store, database postgresql.Database, user postgresql.Role, testSuffix string) {
 		_, err := store.Roles.Create(postgresql.Role{Name: database.Owner, UseExisting: true})
 		require.NoErrorf(t, err, "ensure database owner role %s", testSuffix)
 		database.UseExisting = true

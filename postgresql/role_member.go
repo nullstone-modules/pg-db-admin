@@ -32,7 +32,7 @@ type RoleMemberKey struct {
 var _ rest.DataAccess[RoleMemberKey, RoleMember] = &RoleMembers{}
 
 type RoleMembers struct {
-	BaseConnectionUrl string
+	DbOpener DbOpener
 }
 
 func (r *RoleMembers) Create(membership RoleMember) (*RoleMember, error) {
@@ -49,11 +49,10 @@ func (r *RoleMembers) Create(membership RoleMember) (*RoleMember, error) {
 		}
 	}
 
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	sq := fmt.Sprintf("GRANT %s TO %s", pq.QuoteIdentifier(membership.Target), pq.QuoteIdentifier(membership.Member))
 	if membership.WithAdminOption {
@@ -66,11 +65,10 @@ func (r *RoleMembers) Create(membership RoleMember) (*RoleMember, error) {
 }
 
 func (r *RoleMembers) Read(key RoleMemberKey) (*RoleMember, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	sq := `SELECT
 pg_get_userbyid(member) as role,

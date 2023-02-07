@@ -21,7 +21,7 @@ type Role struct {
 var _ rest.DataAccess[string, Role] = &Roles{}
 
 type Roles struct {
-	BaseConnectionUrl string
+	DbOpener DbOpener
 }
 
 func (r *Roles) Create(role Role) (*Role, error) {
@@ -34,11 +34,10 @@ func (r *Roles) Create(role Role) (*Role, error) {
 		}
 	}
 
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	fmt.Printf("Creating role %q\n", role.Name)
 	if _, err := db.Exec(r.generateCreateSql(role)); err != nil {
@@ -48,11 +47,10 @@ func (r *Roles) Create(role Role) (*Role, error) {
 }
 
 func (r *Roles) Read(key string) (*Role, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	var name string
 	row := db.QueryRow(`SELECT rolname from pg_roles WHERE rolname = $1`, key)
@@ -66,11 +64,10 @@ func (r *Roles) Read(key string) (*Role, error) {
 }
 
 func (r *Roles) Update(key string, role Role) (*Role, error) {
-	db, err := OpenDatabase(r.BaseConnectionUrl, "")
+	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	if role.Password == "" {
 		return &role, nil

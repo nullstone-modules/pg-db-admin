@@ -31,7 +31,7 @@ type Database struct {
 var _ rest.DataAccess[string, Database] = &Databases{}
 
 type Databases struct {
-	BaseConnectionUrl string
+	DbOpener DbOpener
 }
 
 func (d *Databases) Create(obj Database) (*Database, error) {
@@ -44,11 +44,10 @@ func (d *Databases) Create(obj Database) (*Database, error) {
 		}
 	}
 
-	db, err := OpenDatabase(d.BaseConnectionUrl, "")
+	db, err := d.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	info, err := CalcDbConnectionInfo(db)
 	if err != nil {
@@ -79,11 +78,10 @@ func (d *Databases) Create(obj Database) (*Database, error) {
 }
 
 func (d *Databases) Read(key string) (*Database, error) {
-	db, err := OpenDatabase(d.BaseConnectionUrl, "")
+	db, err := d.DbOpener.OpenDatabase("")
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	var owner string
 	row := db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, key)
