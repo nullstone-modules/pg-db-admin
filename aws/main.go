@@ -15,6 +15,7 @@ import (
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
 	"log"
 	"os"
+	"time"
 )
 
 const (
@@ -22,7 +23,9 @@ const (
 )
 
 func main() {
-	dbConnUrl, err := fetchConnUrlFromSecrets(context.TODO())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	dbConnUrl, err := fetchConnUrlFromSecrets(ctx)
 	if err != nil {
 		log.Println(err.Error())
 	}
