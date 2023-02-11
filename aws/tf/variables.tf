@@ -36,13 +36,18 @@ variable "password" {
 }
 
 variable "network" {
-  description = "Network configuration"
+  description = <<EOF
+Network configuration.
+Do not choose public subnets unless you have configured a VPC Endpoint in the VPC for Secrets Manager.
+EOF
+
   type = object({
     vpc_id : string
     pg_security_group_id : string
     security_group_ids : list(string)
     subnet_ids = list(string)
   })
+
   default = {
     vpc_id               = ""
     pg_security_group_id = ""
