@@ -24,6 +24,8 @@ func CalcDbConnectionInfo(db *sql.DB) (*DbInfo, error) {
 		return nil, fmt.Errorf("could not check if current user is superuser: %w", err)
 	}
 
+	dci.IsSuperuser = superuser
+
 	var err error
 
 	if dci.DbVersion, err = detectDbVersion(db); err != nil {
