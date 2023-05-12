@@ -114,7 +114,7 @@ func (*Roles) generateCreateSql(role Role) string {
 		for _, m := range role.MemberOf {
 			safeRoleNames = append(safeRoleNames, pq.QuoteIdentifier(m))
 		}
-		fmt.Fprintf(b, "IN ROLE %s", strings.Join(safeRoleNames, ","))
+		fmt.Fprintf(b, " IN ROLE %s", strings.Join(safeRoleNames, ","))
 	}
 	if role.Password != "" {
 		fmt.Fprint(b, " PASSWORD ")
