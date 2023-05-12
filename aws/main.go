@@ -3,14 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/nullstone-io/go-lambda-api-sdk/function_url"
 	"github.com/nullstone-modules/pg-db-admin/api"
+	"github.com/nullstone-modules/pg-db-admin/aws/secrets"
 	"github.com/nullstone-modules/pg-db-admin/legacy"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
 	"log"
@@ -25,7 +22,7 @@ const (
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	dbConnUrl, err := fetchConnUrlFromSecrets(ctx)
+	dbConnUrl, err := secrets.GetString(ctx, os.Getenv(dbConnUrlSecretIdEnvVar))
 	if err != nil {
 		log.Println(err.Error())
 	}
@@ -58,21 +55,4 @@ func isFunctionUrlEvent(raw json.RawMessage) (bool, events.LambdaFunctionURLRequ
 		return false, event
 	}
 	return event.RequestContext.HTTP.Method != "", event
-}
-
-func fetchConnUrlFromSecrets(ctx context.Context) (string, error) {
-	awsConfig, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return "", fmt.Errorf("error accessing aws: %w", err)
-	}
-	sm := secretsmanager.NewFromConfig(awsConfig)
-	secretId := os.Getenv(dbConnUrlSecretIdEnvVar)
-	out, err := sm.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{SecretId: aws.String(secretId)})
-	if err != nil {
-		return "", fmt.Errorf("error accessing secret: %w", err)
-	}
-	if out.SecretString == nil {
-		return "", nil
-	}
-	return *out.SecretString, nil
 }
