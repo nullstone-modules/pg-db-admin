@@ -1,5 +1,5 @@
 resource "aws_lambda_function" "db_admin_setup" {
-  function_name    = var.name
+  function_name    = "${var.name}-setup"
   tags             = var.tags
   role             = aws_iam_role.db_admin.arn
   runtime          = "go1.x"
