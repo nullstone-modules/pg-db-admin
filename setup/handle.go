@@ -69,7 +69,6 @@ func generateAdminRole(ctx context.Context, adminConnUrlSecretId string) (postgr
 		SkipPasswordUpdate: true,
 		MemberOf:           []string{"rds_superuser"},
 		Attributes: postgresql.RoleAttributes{
-			Inherit:    true,
 			CreateDb:   true,
 			CreateRole: true,
 		},
