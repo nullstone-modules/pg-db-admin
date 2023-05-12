@@ -21,6 +21,6 @@ resource "aws_lambda_function" "db_admin_setup" {
 }
 
 resource "aws_lambda_invocation" "db_admin_setup" {
-  function_name = aws_lambda_function.db_admin_setup
+  function_name = aws_lambda_function.db_admin_setup.function_name
   input         = jsonencode({ setup : true })
 }
