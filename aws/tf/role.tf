@@ -33,7 +33,19 @@ resource "aws_iam_role_policy" "db_admin" {
 
 data "aws_iam_policy_document" "db_admin" {
   statement {
-    sid       = "AllowDbAccess"
+    sid = "AllowDbAccess"
+    effect = "Allow"
+    resources = [aws_secretsmanager_secret.admin_role_conn_url.arn]
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:UpdateSecretValue",
+      "kms:Decrypt",
+      "kms:Encrypt"
+    ]
+  }
+
+  statement {
+    sid       = "AllowDbSetup"
     effect    = "Allow"
     resources = [aws_secretsmanager_secret.db_admin_pg.arn]
     actions = [
