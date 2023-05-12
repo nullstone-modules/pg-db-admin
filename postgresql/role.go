@@ -7,15 +7,25 @@ import (
 	"github.com/lib/pq"
 	"github.com/nullstone-io/go-rest-api"
 	"log"
+	"strings"
 )
 
 type Role struct {
 	Name     string `json:"name"`
 	Password string `json:"password"`
-
 	// Do not error if trying to create a role that already exists
 	// Instead, read the existing, set the password, and return
 	UseExisting bool `json:"useExisting"`
+	// SkipPasswordUpdate informs Create to skip updating the role's password if the role already exists
+	SkipPasswordUpdate bool `json:"-"`
+
+	MemberOf   []string       `json:"memberOf"`
+	Attributes RoleAttributes `json:"attributes"`
+}
+
+type RoleAttributes struct {
+	CreateDb   bool `json:"createDb"`
+	CreateRole bool `json:"createRole"`
 }
 
 var _ rest.DataAccess[string, Role] = &Roles{}
@@ -72,6 +82,11 @@ func (r *Roles) Update(key string, role Role) (*Role, error) {
 	if role.Password == "" {
 		return &role, nil
 	}
+	if role.SkipPasswordUpdate {
+		log.Printf("Skipping password update for %q\n", role.Name)
+		role.Password = ""
+		return &role, nil
+	}
 	log.Printf("Setting password for %q\n", role.Name)
 	updateSql := fmt.Sprintf(`ALTER ROLE %s WITH PASSWORD %s`, pq.QuoteIdentifier(role.Name), pq.QuoteLiteral(role.Password))
 	if _, err := db.Exec(updateSql); err != nil {
@@ -88,6 +103,19 @@ func (r *Roles) Drop(key string) (bool, error) {
 func (*Roles) generateCreateSql(role Role) string {
 	b := bytes.NewBufferString("CREATE ROLE ")
 	fmt.Fprint(b, pq.QuoteIdentifier(role.Name), " WITH LOGIN")
+	if role.Attributes.CreateRole {
+		fmt.Fprint(b, " CREATEROLE")
+	}
+	if role.Attributes.CreateDb {
+		fmt.Fprint(b, " CREATEDB")
+	}
+	if len(role.MemberOf) > 0 {
+		safeRoleNames := make([]string, 0)
+		for _, m := range role.MemberOf {
+			safeRoleNames = append(safeRoleNames, pq.QuoteIdentifier(m))
+		}
+		fmt.Fprintf(b, "IN ROLE %s", strings.Join(safeRoleNames, ","))
+	}
 	if role.Password != "" {
 		fmt.Fprint(b, " PASSWORD ")
 		fmt.Fprint(b, pq.QuoteLiteral(role.Password))
