@@ -31,6 +31,10 @@ func NewStore(connUrl string) *Store {
 	return store
 }
 
+func (s *Store) ConnectionUrl() string {
+	return s.connUrl
+}
+
 func (s *Store) Close() {
 	s.Lock()
 	defer s.Unlock()

@@ -11,7 +11,12 @@ resource "aws_lambda_function" "db_admin" {
 
   environment {
     variables = {
-      DB_CONN_URL_SECRET_ID = aws_secretsmanager_secret.db_admin_pg.id
+      DB_ADMIN_CONN_URL_SECRET_ID = aws_secretsmanager_secret.admin_role_conn_url.id
+
+      // RESET_FUNCTION does 2 things:
+      // 1. Waits for lambda invocation of initial setup
+      // 2. Any time initial setup is run, forces the lambda to reset to force an update of the connection url
+      RESET_FUNCTION = sha1(aws_lambda_invocation.db_admin_setup.result)
     }
   }
 
