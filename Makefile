@@ -8,6 +8,9 @@ tools:
 build:
 	mkdir -p ./aws/tf/files
 	GOOS=linux GOARCH=amd64 go build -o ./aws/tf/files/pg-db-admin ./aws/
+	rm -rf ./gcp/tf/files/ && mkdir -p ./gcp/tf/files/
+	zip -r gcp/tf/files/pg-db-admin.zip go.mod go.sum api/ postgresql/ vendor/
+	cd gcp && zip -ur tf/files/pg-db-admin.zip main.go # main.go *must* be in the root of the zip file
 
 package: tools
 	cd ./aws/tf && build-lambda-zip --output files/pg-db-admin.zip files/pg-db-admin
