@@ -9,7 +9,7 @@ resource "google_cloudfunctions2_function" "function" {
     entry_point = "pg-db-admin"
 
     environment_variables = {
-      "SOURCE_HASH" : google_storage_bucket_object.binary.detect_md5hash
+      "SOURCE_HASH" : filebase64sha256(local.package_filename)
     }
 
     source {
