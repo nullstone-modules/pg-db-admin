@@ -42,7 +42,7 @@ jobs:
         run: |
           nullstone modules publish \
             --include=files/pg-db-admin.zip \
-              --version=${{ env.MODULE_VERSION }}
+            --version=${{ env.MODULE_VERSION }}
       - id: publish-gcp
         name: Publish GCP
         working-directory: gcp/tf
