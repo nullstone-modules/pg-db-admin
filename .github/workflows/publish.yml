@@ -17,17 +17,14 @@ jobs:
         shell: bash
 
     steps:
-      # Checkout the repository to the GitHub Actions runner
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: '1.18'
-
       - name: Set up Nullstone
         uses: nullstone-io/setup-nullstone-action@v0
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
 
       - name: Build binaries into packages
         run: |
@@ -37,12 +34,19 @@ jobs:
 
       - name: Find version
         id: version
-        run: echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
+        run: echo "MODULE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
-      - id: publish
-        name: Publish
-        working-directory: aws/tf/
+      - id: publish-aws
+        name: Publish AWS
+        working-directory: aws/tf
         run: |
           nullstone modules publish \
-            --version=${{ steps.version.outputs.tag }} \
-            --include=files/pg-db-admin.zip
+            --include=files/pg-db-admin.zip \
+            --version=${{ env.MODULE_VERSION }}
+      - id: publish-gcp
+        name: Publish GCP
+        working-directory: gcp/tf
+        run: |
+          nullstone modules publish \
+            --include=files/pg-db-admin.zip \
+            --version=${{ env.MODULE_VERSION }}

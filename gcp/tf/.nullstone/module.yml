@@ -1,0 +1,13 @@
+org_name: nullstone
+name: gcp-pg-db-admin
+friendly_name: GCP Cloud Function for PostgreSQL Admin
+description: Creates a Google Cloud Function to administer a postgresql database without the use of SSH Tunnel or VPN
+category: block
+subcategory: ""
+provider_types:
+    - gcp
+platform: postgres
+subplatform: ""
+type: ""
+appCategories: []
+is_public: true
