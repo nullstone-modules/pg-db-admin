@@ -7,7 +7,7 @@ tools:
 
 build:
 	mkdir -p ./aws/tf/files
-	GOOS=linux GOARCH=amd64 go build -o ./aws/tf/files/pg-db-admin ./aws/
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./aws/tf/files/pg-db-admin ./aws/
 	# Run build on gcp to ensure a successful build, we discard it
 	GOOS=linux GOARCH=amd64 go build -o ./gcp/tf/files/pg-db-admin ./gcp/; rm -f ./gcp/tf/files/pg-db-admin
 
