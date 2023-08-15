@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/nullstone-modules/pg-db-admin/aws/secrets"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
+	"log"
 	"net/url"
 )
 
@@ -37,14 +38,17 @@ func IsEvent(rawEvent json.RawMessage) (bool, Event) {
 // In short, db_admin attempts the following membership chain (creating a cycle) <admin-role> -> <app-role> -> <admin-role>
 // This admin user alters the membership chain to be <admin-role> -> <app-role> -> <database-owner>
 func Handle(ctx context.Context, event Event, store *postgresql.Store, adminConnUrlSecretId string) (*EventResult, error) {
+	log.Println("Generating admin role")
 	toCreate, err := generateAdminRole(ctx, adminConnUrlSecretId)
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate admin role: %w", err)
 	}
+	log.Println("Creating admin role in database")
 	adminRole, err := store.Roles.Create(toCreate)
 	if err != nil {
 		return nil, fmt.Errorf("error ensure admin role: %w", err)
 	} else if adminRole.Password == "" {
+		log.Println("Admin role already exists")
 		// The role already exists, we're done
 		versionId, err := secrets.GetLatestVersionId(ctx, adminConnUrlSecretId)
 		if err != nil {
@@ -53,6 +57,7 @@ func Handle(ctx context.Context, event Event, store *postgresql.Store, adminConn
 		return &EventResult{SecretVersionId: versionId}, nil
 	}
 
+	log.Printf("Saving admin role credentials to admin connection url secret (%s)\n", adminConnUrlSecretId)
 	// Build a connection url using the setup url, but with the admin role credentials
 	adminConnUrl := urlWithUserinfo(store.ConnectionUrl(), adminRole.Name, adminRole.Password)
 	// Set the value of the secret in secrets manager that holds the admin credentials

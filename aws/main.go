@@ -27,11 +27,15 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	dbSetupConnUrl, err := secrets.GetString(ctx, os.Getenv(dbSetupConnUrlSecretIdEnvVar))
+	setupConnUrlSecretId := os.Getenv(dbSetupConnUrlSecretIdEnvVar)
+	log.Printf("Retrieving setup connection url secret (%s)\n", setupConnUrlSecretId)
+	dbSetupConnUrl, err := secrets.GetString(ctx, setupConnUrlSecretId)
 	if err != nil {
 		log.Println(err.Error())
 	}
-	dbAdminConnUrl, err := secrets.GetString(ctx, os.Getenv(dbAdminConnUrlSecretIdEnvVar))
+	adminConnUrlSecretId := os.Getenv(dbAdminConnUrlSecretIdEnvVar)
+	log.Printf("Retrieving admin connection url secret (%s)\n", adminConnUrlSecretId)
+	dbAdminConnUrl, err := secrets.GetString(ctx, adminConnUrlSecretId)
 	if err != nil {
 		log.Println(err.Error())
 	}
