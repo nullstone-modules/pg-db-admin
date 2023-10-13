@@ -28,11 +28,16 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	setupConnUrlSecretId := os.Getenv(dbSetupConnUrlSecretIdEnvVar)
-	log.Printf("Retrieving setup connection url secret (%s)\n", setupConnUrlSecretId)
-	dbSetupConnUrl, err := secrets.GetString(ctx, setupConnUrlSecretId)
-	if err != nil {
-		log.Println(err.Error())
+	var dbSetupConnUrl string
+	if setupConnUrlSecretId := os.Getenv(dbSetupConnUrlSecretIdEnvVar); setupConnUrlSecretId == "" {
+		log.Println("Skipping setup connection url secret")
+	} else {
+		log.Printf("Retrieving setup connection url secret (%s)\n", setupConnUrlSecretId)
+		var err error
+		dbSetupConnUrl, err = secrets.GetString(ctx, setupConnUrlSecretId)
+		if err != nil {
+			log.Println(err.Error())
+		}
 	}
 	adminConnUrlSecretId := os.Getenv(dbAdminConnUrlSecretIdEnvVar)
 	log.Printf("Retrieving admin connection url secret (%s)\n", adminConnUrlSecretId)
@@ -56,7 +61,7 @@ func HandleRequest(setupStore, adminStore *postgresql.Store) func(ctx context.Co
 			return setup.Handle(ctx, event, setupStore, os.Getenv(dbAdminConnUrlSecretIdEnvVar))
 		}
 		if ok, event := crud_invoke.IsEvent(rawEvent); ok {
-			log.Println("Invocation (CRUD) Event", event.Tf.Action)
+			log.Println("Invocation (CRUD) Event", event.Tf.Action, event.Type)
 			return crud_invoke.Handle(ctx, event, adminStore)
 		}
 
