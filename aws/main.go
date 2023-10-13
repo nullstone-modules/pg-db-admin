@@ -8,6 +8,7 @@ import (
 	"github.com/nullstone-io/go-lambda-api-sdk/function_url"
 	"github.com/nullstone-modules/pg-db-admin/api"
 	"github.com/nullstone-modules/pg-db-admin/aws/secrets"
+	crud_invoke "github.com/nullstone-modules/pg-db-admin/crud-invoke"
 	"github.com/nullstone-modules/pg-db-admin/legacy"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
 	"github.com/nullstone-modules/pg-db-admin/setup"
@@ -53,6 +54,10 @@ func HandleRequest(setupStore, adminStore *postgresql.Store) func(ctx context.Co
 		if ok, event := setup.IsEvent(rawEvent); ok {
 			log.Println("Initial Setup Event")
 			return setup.Handle(ctx, event, setupStore, os.Getenv(dbAdminConnUrlSecretIdEnvVar))
+		}
+		if ok, event := crud_invoke.IsEvent(rawEvent); ok {
+			log.Println("Invocation (CRUD) Event", event.Tf.Action)
+			return crud_invoke.Handle(ctx, event, adminStore)
 		}
 
 		if ok, event := isFunctionUrlEvent(rawEvent); ok {

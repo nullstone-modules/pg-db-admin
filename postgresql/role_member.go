@@ -24,6 +24,13 @@ type RoleMember struct {
 	UseExisting bool `json:"useExisting"`
 }
 
+func (r RoleMember) Key() RoleMemberKey {
+	return RoleMemberKey{
+		Member: r.Member,
+		Target: r.Target,
+	}
+}
+
 type RoleMemberKey struct {
 	Member string
 	Target string
