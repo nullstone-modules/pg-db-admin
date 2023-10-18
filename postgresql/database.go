@@ -28,6 +28,10 @@ type Database struct {
 	UseExisting bool `json:"useExisting"`
 }
 
+func (d Database) Key() string {
+	return d.Name
+}
+
 var _ rest.DataAccess[string, Database] = &Databases{}
 
 type Databases struct {

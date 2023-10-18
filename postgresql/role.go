@@ -23,6 +23,10 @@ type Role struct {
 	Attributes RoleAttributes `json:"attributes"`
 }
 
+func (r Role) Key() string {
+	return r.Name
+}
+
 type RoleAttributes struct {
 	CreateDb   bool `json:"createDb"`
 	CreateRole bool `json:"createRole"`
