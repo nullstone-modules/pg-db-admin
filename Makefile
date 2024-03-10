@@ -7,13 +7,13 @@ tools:
 
 build:
 	mkdir -p ./aws/tf/files
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./aws/tf/files/pg-db-admin ./aws/
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags lambda.norpc -o ./aws/tf/files/bootstrap ./aws/
 	# Run build on gcp to ensure a successful build, we discard it
 	GOOS=linux GOARCH=amd64 go build -o ./gcp/tf/files/pg-db-admin ./gcp/; rm -f ./gcp/tf/files/pg-db-admin
 
 package: tools
 	# Package aws module using build-lambda-zip which produces a viable package from any OS
-	cd ./aws/tf && build-lambda-zip --output files/pg-db-admin.zip files/pg-db-admin
+	cd ./aws/tf && build-lambda-zip --output files/pg-db-admin.zip files/bootstrap
 	# Package gcp module (source code instead of binary)
 	# For GCP, main.go *must* be in the root of the zip file
 	cp gcp/main.go main.go && \
