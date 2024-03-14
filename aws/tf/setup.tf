@@ -2,8 +2,8 @@ resource "aws_lambda_function" "db_admin_setup" {
   function_name    = "${var.name}-setup"
   tags             = var.tags
   role             = aws_iam_role.db_admin.arn
-  runtime          = "go1.x"
-  handler          = "pg-db-admin"
+  runtime          = "provided.al2023"
+  handler          = "bootstrap"
   filename         = "${path.module}/files/pg-db-admin.zip"
   source_code_hash = filebase64sha256("${path.module}/files/pg-db-admin.zip")
 
