@@ -1,4 +1,11 @@
 resource "google_cloudfunctions2_function" "function" {
+  depends_on = [
+    google_project_service.run,
+    google_project_service.cloudbuild,
+    google_project_service.function,
+    google_project_service.artifact_registry,
+  ]
+
   name        = var.name
   location    = local.region
   description = "${var.name} Postgresql DB Admin"
