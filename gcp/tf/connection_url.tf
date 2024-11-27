@@ -3,7 +3,7 @@ resource "google_secret_manager_secret" "db_admin_pg" {
   labels    = var.labels
 
   replication {
-    automatic = true
+    auto {}
   }
 }
 
