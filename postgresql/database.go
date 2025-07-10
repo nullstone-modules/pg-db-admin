@@ -3,6 +3,7 @@ package postgresql
 import (
 	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/go-multierror/multierror"
 	"github.com/lib/pq"
@@ -90,7 +91,7 @@ func (d *Databases) Read(key string) (*Database, error) {
 	var owner string
 	row := db.QueryRow(`SELECT pg_catalog.pg_get_userbyid(d.datdba) from pg_database d WHERE datname=$1`, key)
 	if err := row.Scan(&owner); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err

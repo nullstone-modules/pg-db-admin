@@ -81,7 +81,8 @@ func TestFull(t *testing.T) {
 		defer db.Close()
 
 		// Attempt to create schema objects
-		_, err := db.Exec("CREATE TABLE todos ( id SERIAL NOT NULL, name varchar(255) );")
+		_, err := db.Exec(`CREATE TABLE todos ( id SERIAL NOT NULL, name varchar(255) );
+CREATE MATERIALIZED VIEW todos_view AS SELECT * FROM todos;`)
 		require.NoError(t, err, "create table")
 	})
 
@@ -141,5 +142,16 @@ func TestFull(t *testing.T) {
 			results = append(results, name)
 		}
 		assert.Equal(t, []string{"item1", "item2", "item3"}, results)
+	})
+
+	t.Run("refresh materialized view", func(t *testing.T) {
+		rootDb, store := connect(t, "postgres", "pda", "pda")
+		defer rootDb.Close()
+		ensureFull(t, store, newDatabase, secondUser, "#2")
+
+		db, _ := connect(t, newDatabase.Name, secondUser.Name, secondUser.Password)
+		defer db.Close()
+		_, err := db.Exec(`REFRESH MATERIALIZED VIEW todos_view`)
+		require.NoError(t, err, "refresh materialized view")
 	})
 }

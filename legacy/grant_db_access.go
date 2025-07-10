@@ -19,7 +19,11 @@ func GrantDbAccess(store *postgresql.Store, username, databaseName string) error
 	if err := grantDefaultPrivileges(store, username, databaseName, database.Owner); err != nil {
 		return err
 	}
-	return grantDbAndSchemaPrivileges(store, username, databaseName)
+	if err := grantDbAndSchemaPrivileges(store, username, databaseName); err != nil {
+		return err
+	}
+	//return grantMaterializedViewsPrivileges(store, username, databaseName)
+	return nil
 }
 
 // grantRole adds user as a member of the database owner role
@@ -54,5 +58,16 @@ func grantDbAndSchemaPrivileges(store *postgresql.Store, roleName, databaseName 
 		Database: databaseName,
 	}
 	_, err := store.SchemaPrivileges.Update(priv.Key(), priv)
+	return err
+}
+
+func grantMaterializedViewsPrivileges(store *postgresql.Store, roleName, databaseName string) error {
+	log.Printf("Granting refresh materialized view privileges on %q to %q", databaseName, roleName)
+	priv := postgresql.MaterializedViewsGrant{
+		Database: databaseName,
+		Role:     roleName,
+		Views:    []postgresql.MaterializedView{{Name: "*"}},
+	}
+	_, err := store.MaterializedViews.Update(priv.Key(), priv)
 	return err
 }

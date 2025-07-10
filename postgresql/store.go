@@ -6,11 +6,12 @@ import (
 )
 
 type Store struct {
-	Databases        *Databases
-	Roles            *Roles
-	RoleMembers      *RoleMembers
-	DefaultGrants    *DefaultGrants
-	SchemaPrivileges *SchemaPrivileges
+	Databases         *Databases
+	Roles             *Roles
+	RoleMembers       *RoleMembers
+	DefaultGrants     *DefaultGrants
+	SchemaPrivileges  *SchemaPrivileges
+	MaterializedViews *MaterializedViews
 
 	connUrl       string
 	connsByDbName map[string]*sql.DB
@@ -28,6 +29,7 @@ func NewStore(connUrl string) *Store {
 	store.RoleMembers = &RoleMembers{DbOpener: store}
 	store.DefaultGrants = &DefaultGrants{DbOpener: store}
 	store.SchemaPrivileges = &SchemaPrivileges{DbOpener: store}
+	store.MaterializedViews = &MaterializedViews{DbOpener: store}
 	return store
 }
 
