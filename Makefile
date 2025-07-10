@@ -24,6 +24,7 @@ acc: acc-up acc-run acc-down
 
 acc-up:
 	cd acc && docker-compose -p pg-db-admin-acc up -d db
+	./acc/wait-for-db.sh pg-db-admin-acc
 
 acc-run:
 	ACC=1 gotestsum ./acc/...

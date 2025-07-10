@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres
@@ -8,3 +6,8 @@ services:
     environment:
       - POSTGRES_USER=pda
       - POSTGRES_PASSWORD=pda
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pda"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
