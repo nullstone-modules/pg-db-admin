@@ -1,6 +1,7 @@
 resource "aws_secretsmanager_secret" "db_admin_pg" {
-  name = "${var.name}/conn_url"
-  tags = var.tags
+  name                    = "${var.name}/conn_url"
+  tags                    = var.tags
+  recovery_window_in_days = var.is_prod_env ? 7 : 0
 }
 
 resource "aws_secretsmanager_secret_version" "db_admin_pg" {

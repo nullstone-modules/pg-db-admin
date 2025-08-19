@@ -35,6 +35,16 @@ variable "password" {
   type        = string
 }
 
+variable "is_prod_env" {
+  type        = bool
+  default     = true
+  description = <<EOF
+When destroying, is_prod_env determines the recovery window for the admin password secret.
+If true, a 7-day recovery window will be configured.
+If not, secret will be deleted immediately.
+EOF
+}
+
 variable "network" {
   description = <<EOF
 Network configuration.
