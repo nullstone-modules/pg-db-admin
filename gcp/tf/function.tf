@@ -12,7 +12,7 @@ resource "google_cloudfunctions2_function" "function" {
   labels      = var.labels
 
   build_config {
-    runtime     = "go120"
+    runtime     = "go125"
     entry_point = "pg-db-admin"
 
     environment_variables = {
