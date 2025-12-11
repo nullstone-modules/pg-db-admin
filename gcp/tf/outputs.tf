@@ -9,7 +9,7 @@ output "function_url" {
 output "invoker" {
   value = {
     email       = google_service_account.invoker.email
-    private_key = google_service_account_key.invoker.private_key
+    impersonate = true
   }
 
   description = "object({ email: string, private_key: string }) ||| A GCP service account with explicit privilege invoke db admin cloud function."

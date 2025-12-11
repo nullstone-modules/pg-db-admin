@@ -1,6 +1,6 @@
 locals {
   truncated_executor_len = min(length(var.name), 28 - length("executor-"))
-  executor_name  = "executor-${substr(var.name, 0, local.truncated_executor_len)}"
+  executor_name          = "executor-${substr(var.name, 0, local.truncated_executor_len)}"
 }
 
 resource "google_service_account" "executor" {

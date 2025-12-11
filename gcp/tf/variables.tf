@@ -42,3 +42,11 @@ This module requires a VPC Serverless Access Connector to reach the Cloud SQL in
 This variable configures the function to use an existing access connector.
 EOF
 }
+
+variable "invoker_impersonators" {
+  type        = set(string)
+  default     = []
+  description = <<EOF
+A set of IDs for service accounts that should have permission to impersonate the invoker service account.
+EOF
+}

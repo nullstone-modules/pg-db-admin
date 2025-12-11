@@ -4,10 +4,11 @@ locals {
 }
 
 resource "google_storage_bucket" "binaries" {
-  name          = "${var.name}-binaries"
-  location      = local.storage_location
-  labels        = var.labels
-  force_destroy = true
+  name                        = "${var.name}-binaries"
+  location                    = local.storage_location
+  labels                      = var.labels
+  uniform_bucket_level_access = true
+  force_destroy               = true
 }
 
 resource "google_storage_bucket_object" "binary" {

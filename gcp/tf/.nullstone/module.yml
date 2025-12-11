@@ -11,3 +11,4 @@ subplatform: ""
 type: ""
 appCategories: []
 is_public: true
+tool_name: opentofu
