@@ -12,8 +12,9 @@ resource "google_cloudfunctions2_function" "function" {
   labels      = var.labels
 
   build_config {
-    runtime     = "go125"
-    entry_point = "pg-db-admin"
+    runtime         = "go125"
+    entry_point     = "pg-db-admin"
+    service_account = google_service_account.builder.email
 
     environment_variables = {
       "SOURCE_HASH" : filebase64sha256(local.package_filename)
