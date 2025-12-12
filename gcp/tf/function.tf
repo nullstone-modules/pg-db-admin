@@ -14,7 +14,7 @@ resource "google_cloudfunctions2_function" "function" {
   build_config {
     runtime         = "go125"
     entry_point     = "pg-db-admin"
-    service_account = google_service_account.builder.email
+    service_account = google_service_account.builder.id
 
     environment_variables = {
       "SOURCE_HASH" : filebase64sha256(local.package_filename)
