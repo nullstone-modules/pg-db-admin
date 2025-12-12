@@ -1,8 +1,8 @@
 // The builder service account has enough permissions to build the code for the cloud function
 
 locals {
-  truncated_len = min(length(var.name), 28 - length("builder-"))
-  builder_name  = "builder-${substr(var.name, 0, local.truncated_len)}"
+  truncated_builder_len = min(length(var.name), 28 - length("builder-"))
+  builder_name          = "builder-${substr(var.name, 0, local.truncated_builder_len)}"
 }
 
 resource "google_service_account" "builder" {
