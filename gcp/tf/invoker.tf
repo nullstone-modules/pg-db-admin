@@ -22,3 +22,12 @@ resource "google_service_account_iam_binding" "invoker_impersonators" {
   role               = "roles/iam.serviceAccountTokenCreator"
   members            = ["serviceAccount:${each.value}"]
 }
+
+// Allow agents to create open id token
+resource "google_service_account_iam_binding" "invoker_idtoken" {
+  for_each = var.invoker_impersonators
+
+  service_account_id = google_service_account.invoker.id
+  role               = "roles/iam.serviceAccountOpenIdTokenCreator"
+  members            = ["serviceAccount:${each.value}"]
+}
