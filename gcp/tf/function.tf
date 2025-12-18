@@ -30,11 +30,11 @@ resource "google_cloudfunctions2_function" "function" {
 
   service_config {
     service_account_email            = google_service_account.executor.email
-    available_cpu                    = "2"
-    available_memory                 = "512Mi"
+    available_cpu                    = "1"
+    available_memory                 = "256Mi"
     timeout_seconds                  = 20
-    max_instance_count               = 100
-    max_instance_request_concurrency = 50
+    max_instance_count               = 3
+    max_instance_request_concurrency = 3
     all_traffic_on_latest_revision   = true
     ingress_settings                 = "ALLOW_ALL"
     vpc_connector_egress_settings    = "ALL_TRAFFIC"
