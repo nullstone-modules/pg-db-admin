@@ -16,18 +16,14 @@ resource "google_project_iam_member" "invoker_basic" {
 
 // Allow agents to impersonate the invoker agent
 resource "google_service_account_iam_binding" "invoker_impersonators" {
-  for_each = var.invoker_impersonators
-
   service_account_id = google_service_account.invoker.id
   role               = "roles/iam.serviceAccountTokenCreator"
-  members            = ["serviceAccount:${each.value}"]
+  members            = [for email in var.invoker_impersonators : "serviceAccount:${email}"]
 }
 
 // Allow agents to create open id token
 resource "google_service_account_iam_binding" "invoker_idtoken" {
-  for_each = var.invoker_impersonators
-
   service_account_id = google_service_account.invoker.id
   role               = "roles/iam.serviceAccountOpenIdTokenCreator"
-  members            = ["serviceAccount:${each.value}"]
+  members            = [for email in var.invoker_impersonators : "serviceAccount:${email}"]
 }
