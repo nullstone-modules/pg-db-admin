@@ -45,6 +45,23 @@ If not, secret will be deleted immediately.
 EOF
 }
 
+variable "alerts" {
+  description = <<EOF
+Configuration for CloudWatch alarms on the db-admin lambda functions.
+- enabled: Set to true to create the error-rate alarms (default: false)
+- error_rate: Percentage of invocations that error over a 5-minute period to trigger the alarm (default: 5%)
+- notification_arn: SNS topic ARN notified when an alarm changes state
+EOF
+
+  type = object({
+    enabled          = optional(bool, false)
+    error_rate       = optional(number, 5)
+    notification_arn = optional(string, "")
+  })
+
+  default = {}
+}
+
 variable "network" {
   description = <<EOF
 Network configuration.
