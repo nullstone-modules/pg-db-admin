@@ -1,6 +1,6 @@
 module github.com/nullstone-modules/pg-db-admin
 
-go 1.26
+go 1.26.5
 
 require (
 	github.com/GoogleCloudPlatform/functions-framework-go v1.7.4
