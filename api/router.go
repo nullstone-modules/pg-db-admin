@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"github.com/gorilla/mux"
 	"github.com/nullstone-io/go-rest-api"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
@@ -73,6 +74,50 @@ func CreateRouter(store *postgresql.Store) *mux.Router {
 	r.Methods(http.MethodPut).Path("/databases/{database}/schema_privileges/{role}").HandlerFunc(schemaPrivileges.Update)
 	r.Methods(http.MethodDelete).Path("/databases/{database}/schema_privileges/{role}").HandlerFunc(schemaPrivileges.Delete)
 
+	tablePrivileges := rest.Resource[postgresql.TablePrivilegeKey, postgresql.TablePrivilege]{
+		DataAccess: store.TablePrivileges,
+		KeyParser: func(r *http.Request) (postgresql.TablePrivilegeKey, error) {
+			vars := mux.Vars(r)
+			key := postgresql.TablePrivilegeKey{Database: vars["database"]}
+			key.Schema, key.Role, _ = strings.Cut(vars["id"], "::")
+			return key, nil
+		},
+	}
+	r.Methods(http.MethodPost).Path("/databases/{database}/table_privileges").HandlerFunc(tablePrivileges.Create)
+	r.Methods(http.MethodGet).Path("/databases/{database}/table_privileges/{id}").HandlerFunc(tablePrivileges.Get)
+	r.Methods(http.MethodPut).Path("/databases/{database}/table_privileges/{id}").HandlerFunc(tablePrivileges.Update)
+	r.Methods(http.MethodDelete).Path("/databases/{database}/table_privileges/{id}").HandlerFunc(tablePrivileges.Delete)
+
+	publications := rest.Resource[postgresql.PublicationKey, postgresql.Publication]{
+		DataAccess: store.Publications,
+		KeyParser: func(r *http.Request) (postgresql.PublicationKey, error) {
+			vars := mux.Vars(r)
+			return postgresql.PublicationKey{
+				Database: vars["database"],
+				Name:     vars["name"],
+			}, nil
+		},
+	}
+	r.Methods(http.MethodPost).Path("/databases/{database}/publications").HandlerFunc(publications.Create)
+	r.Methods(http.MethodGet).Path("/databases/{database}/publications/{name}").HandlerFunc(publications.Get)
+	r.Methods(http.MethodPut).Path("/databases/{database}/publications/{name}").HandlerFunc(publications.Update)
+	r.Methods(http.MethodDelete).Path("/databases/{database}/publications/{name}").HandlerFunc(publications.Delete)
+
+	replicationSlots := rest.Resource[postgresql.ReplicationSlotKey, postgresql.ReplicationSlot]{
+		DataAccess: store.ReplicationSlots,
+		KeyParser: func(r *http.Request) (postgresql.ReplicationSlotKey, error) {
+			vars := mux.Vars(r)
+			return postgresql.ReplicationSlotKey{
+				Database: vars["database"],
+				Name:     vars["name"],
+			}, nil
+		},
+	}
+	r.Methods(http.MethodPost).Path("/databases/{database}/replication_slots").HandlerFunc(replicationSlots.Create)
+	r.Methods(http.MethodGet).Path("/databases/{database}/replication_slots/{name}").HandlerFunc(replicationSlots.Get)
+	r.Methods(http.MethodPut).Path("/databases/{database}/replication_slots/{name}").HandlerFunc(replicationSlots.Update)
+	r.Methods(http.MethodDelete).Path("/databases/{database}/replication_slots/{name}").HandlerFunc(replicationSlots.Delete)
+
 	defaultGrants := rest.Resource[postgresql.DefaultGrantKey, postgresql.DefaultGrant]{
 		DataAccess: store.DefaultGrants,
 		KeyParser: func(r *http.Request) (postgresql.DefaultGrantKey, error) {
@@ -87,6 +132,23 @@ func CreateRouter(store *postgresql.Store) *mux.Router {
 	r.Methods(http.MethodGet).Path("/roles/{role}/default_grants/{id}").HandlerFunc(defaultGrants.Get)
 	r.Methods(http.MethodPut).Path("/roles/{role}/default_grants/{id}").HandlerFunc(defaultGrants.Update)
 	r.Methods(http.MethodDelete).Path("/roles/{role}/default_grants/{id}").HandlerFunc(defaultGrants.Delete)
+
+	// Reports server configuration (wal_level, current user, replication slot usage)
+	// This lets callers detect an instance that cannot support logical replication before they try to use it
+	r.Methods(http.MethodGet).Path("/settings").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		settings, err := store.Settings.Read()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		raw, err := json.Marshal(settings)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(raw)
+	})
 
 	return r
 }

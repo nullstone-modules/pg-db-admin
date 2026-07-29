@@ -30,6 +30,26 @@ func (r Role) Key() string {
 type RoleAttributes struct {
 	CreateDb   bool `json:"createDb"`
 	CreateRole bool `json:"createRole"`
+	// Replication allows the role to initiate streaming replication and to create/drop replication slots
+	// This is required for logical replication consumers (e.g. Datastream)
+	Replication bool `json:"replication"`
+}
+
+// alterSql produces the `ALTER ROLE ... WITH <attrs>` fragments necessary to add missing attributes to an existing role
+// Attributes are only ever added, never removed:
+// a role is frequently shared with other tooling and dropping an attribute we didn't set would be destructive
+func (a RoleAttributes) alterSql(existing RoleAttributes, features Features) []string {
+	attrs := make([]string, 0)
+	if a.CreateRole && !existing.CreateRole {
+		attrs = append(attrs, "CREATEROLE")
+	}
+	if a.CreateDb && !existing.CreateDb {
+		attrs = append(attrs, "CREATEDB")
+	}
+	if a.Replication && !existing.Replication && features.IsSupported(FeatureReplication) {
+		attrs = append(attrs, "REPLICATION")
+	}
+	return attrs
 }
 
 var _ rest.DataAccess[string, Role] = &Roles{}
@@ -53,8 +73,13 @@ func (r *Roles) Create(role Role) (*Role, error) {
 		return nil, err
 	}
 
+	info, err := CalcDbConnectionInfo(db)
+	if err != nil {
+		return nil, fmt.Errorf("error analyzing database: %w", err)
+	}
+
 	fmt.Printf("Creating role %q\n", role.Name)
-	if _, err := db.Exec(r.generateCreateSql(role)); err != nil {
+	if _, err := db.Exec(r.generateCreateSql(role, info.SupportedFeatures)); err != nil {
 		return nil, fmt.Errorf("error creating user %q: %w", role.Name, err)
 	}
 	return &role, nil
@@ -67,19 +92,24 @@ func (r *Roles) Read(key string) (*Role, error) {
 	}
 
 	var name string
-	row := db.QueryRow(`SELECT rolname from pg_roles WHERE rolname = $1`, key)
-	if err := row.Scan(&name); err != nil {
+	var attrs RoleAttributes
+	row := db.QueryRow(`SELECT rolname, rolcreatedb, rolcreaterole, rolreplication from pg_roles WHERE rolname = $1`, key)
+	if err := row.Scan(&name, &attrs.CreateDb, &attrs.CreateRole, &attrs.Replication); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return &Role{Name: name}, nil
+	return &Role{Name: name, Attributes: attrs}, nil
 }
 
 func (r *Roles) Update(key string, role Role) (*Role, error) {
 	db, err := r.DbOpener.OpenDatabase("")
 	if err != nil {
+		return nil, err
+	}
+
+	if err := r.updateAttributes(db, key, role); err != nil {
 		return nil, err
 	}
 
@@ -104,7 +134,39 @@ func (r *Roles) Drop(key string) (bool, error) {
 	return true, nil
 }
 
-func (*Roles) generateCreateSql(role Role) string {
+// updateAttributes adds any missing role attributes (e.g. REPLICATION) to an existing role
+func (r *Roles) updateAttributes(db *sql.DB, key string, role Role) error {
+	name := role.Name
+	if name == "" {
+		name = key
+	}
+
+	existing, err := r.Read(name)
+	if err != nil {
+		return err
+	} else if existing == nil {
+		return fmt.Errorf("cannot update role %q: role does not exist", name)
+	}
+
+	info, err := CalcDbConnectionInfo(db)
+	if err != nil {
+		return fmt.Errorf("error analyzing database: %w", err)
+	}
+
+	attrs := role.Attributes.alterSql(existing.Attributes, info.SupportedFeatures)
+	if len(attrs) < 1 {
+		return nil
+	}
+
+	log.Printf("Adding attributes [%s] to role %q\n", strings.Join(attrs, ", "), name)
+	updateSql := fmt.Sprintf(`ALTER ROLE %s WITH %s`, pq.QuoteIdentifier(name), strings.Join(attrs, " "))
+	if _, err := db.Exec(updateSql); err != nil {
+		return fmt.Errorf("error altering role %q with [%s]: %w", name, strings.Join(attrs, ", "), err)
+	}
+	return nil
+}
+
+func (*Roles) generateCreateSql(role Role, features Features) string {
 	b := bytes.NewBufferString("CREATE ROLE ")
 	fmt.Fprint(b, pq.QuoteIdentifier(role.Name), " WITH LOGIN")
 	if role.Attributes.CreateRole {
@@ -112,6 +174,9 @@ func (*Roles) generateCreateSql(role Role) string {
 	}
 	if role.Attributes.CreateDb {
 		fmt.Fprint(b, " CREATEDB")
+	}
+	if role.Attributes.Replication && features.IsSupported(FeatureReplication) {
+		fmt.Fprint(b, " REPLICATION")
 	}
 	if len(role.MemberOf) > 0 {
 		safeRoleNames := make([]string, 0)

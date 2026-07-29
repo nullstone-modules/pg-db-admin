@@ -18,6 +18,9 @@ const (
 	FeaturePrivileges
 	FeatureForceDropDatabase
 	FeaturePid
+	FeatureReplicationSlot
+	FeaturePublication
+	FeaturePublicationSchema
 )
 
 type Features map[FeatureName]bool
@@ -59,6 +62,15 @@ func CalcSupportedFeatures(dbVersion semver.Version) Features {
 		// Column procpid was replaced by pid in pg_stat_activity
 		// for Postgresql >= 9.2 and above
 		FeaturePid: semver.MustParseRange(">=9.2.0")(dbVersion),
+
+		// pg_create_logical_replication_slot support
+		FeatureReplicationSlot: semver.MustParseRange(">=9.4.0")(dbVersion),
+
+		// CREATE PUBLICATION support
+		FeaturePublication: semver.MustParseRange(">=10.0.0")(dbVersion),
+
+		// CREATE PUBLICATION ... FOR TABLES IN SCHEMA support
+		FeaturePublicationSchema: semver.MustParseRange(">=15.0.0")(dbVersion),
 	}
 }
 
