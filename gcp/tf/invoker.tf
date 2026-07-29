@@ -8,10 +8,22 @@ resource "google_service_account" "invoker" {
   display_name = "Invoker for pg db admin ${var.name}"
 }
 
-resource "google_project_iam_member" "invoker_basic" {
-  project = local.project_id
-  role    = "roles/run.invoker"
-  member  = "serviceAccount:${google_service_account.invoker.email}"
+// Grant invoke permission on *this* function only.
+//
+// A Cloud Function (2nd gen) is backed by a Cloud Run service, so invoking it over HTTP requires
+// `roles/run.invoker` on that service. This was previously granted at project scope, which let any
+// datastore's invoker call every Cloud Run service in the project -- including other datastores'
+// db-admin functions (the db-admin API has no per-caller authorization, so that is full DBA on every
+// database in the project) and every app deployed on Cloud Run.
+//
+// `service_config[0].service` is the underlying Cloud Run service name; `basename` tolerates providers
+// that return it as a fully-qualified resource path.
+resource "google_cloud_run_service_iam_member" "invoker_basic" {
+  project  = local.project_id
+  location = google_cloudfunctions2_function.function.location
+  service  = basename(google_cloudfunctions2_function.function.service_config[0].service)
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.invoker.email}"
 }
 
 // Allow agents to impersonate the invoker agent

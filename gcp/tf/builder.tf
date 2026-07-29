@@ -29,8 +29,14 @@ resource "google_project_iam_member" "builder_publish_artifacts" {
   member  = "serviceAccount:${google_service_account.builder.email}"
 }
 
-resource "google_project_iam_member" "builder_code_access" {
-  project = local.project_id
-  role    = "roles/storage.objectViewer"
-  member  = "serviceAccount:${google_service_account.builder.email}"
+// The builder only needs to read the source zip out of the binaries bucket, so scope the grant to that
+// bucket rather than every bucket in the project.
+//
+// NOTE: this is hygiene, not a meaningful reduction in effective access. `roles/cloudbuild.builds.builder`
+// above already carries project-wide storage object read/write. Actually tightening the builder means
+// replacing that role with a minimal custom one, which risks breaking function builds.
+resource "google_storage_bucket_iam_member" "builder_code_access" {
+  bucket = google_storage_bucket.binaries.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.builder.email}"
 }
