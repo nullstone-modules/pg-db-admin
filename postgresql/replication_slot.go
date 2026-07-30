@@ -3,6 +3,7 @@ package postgresql
 import (
 	"database/sql"
 	"fmt"
+	"github.com/go-multierror/multierror"
 	"github.com/nullstone-io/go-rest-api"
 	"log"
 	"time"
@@ -132,12 +133,15 @@ func (r *ReplicationSlots) Drop(key ReplicationSlotKey) (bool, error) {
 		return true, nil
 	}
 
+	var terminateErr error
 	if existing.Active {
 		// A slot cannot be dropped while a consumer is streaming from it
 		// The consumer (e.g. a datastream stream) is expected to be torn down first, but it may not have disconnected yet
 		log.Printf("Replication slot %q is still active, disconnecting its consumer\n", key.Name)
-		if _, err := db.Exec(`SELECT pg_terminate_backend(active_pid) FROM pg_replication_slots WHERE slot_name = $1 AND active_pid IS NOT NULL`, key.Name); err != nil {
-			return false, fmt.Errorf("error disconnecting the consumer of replication slot %q: %w", key.Name, err)
+		if _, terminateErr = db.Exec(`SELECT pg_terminate_backend(active_pid) FROM pg_replication_slots WHERE slot_name = $1 AND active_pid IS NOT NULL`, key.Name); terminateErr != nil {
+			// Terminating another role's backend requires membership in pg_signal_backend, which the admin user
+			// does not necessarily have. The consumer may still disconnect on its own, so this is not fatal yet.
+			log.Printf("Unable to disconnect the consumer of replication slot %q: %s\n", key.Name, terminateErr)
 		}
 	}
 
@@ -150,7 +154,13 @@ func (r *ReplicationSlots) Drop(key ReplicationSlotKey) (bool, error) {
 		// Releasing a slot is asynchronous -- the walsender clears active_pid shortly after it is terminated
 		time.Sleep(dropSlotDelay)
 	}
-	return false, fmt.Errorf("error dropping replication slot %q (a consumer may still be attached to it): %w", key.Name, lastErr)
+
+	errs := []error{fmt.Errorf("error dropping replication slot %q (a consumer is likely still attached to it -- "+
+		"stop the consumer, then drop the slot): %w", key.Name, lastErr)}
+	if terminateErr != nil {
+		errs = append(errs, fmt.Errorf("error disconnecting its consumer: %w", terminateErr))
+	}
+	return false, multierror.New(errs)
 }
 
 func (r *ReplicationSlots) read(db *sql.DB, key ReplicationSlotKey) (*ReplicationSlot, error) {
