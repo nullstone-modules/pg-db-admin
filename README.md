@@ -15,6 +15,41 @@ The Lambda requires specific configuration to work properly:
 - The execution role must have access to the above secret.
 - The executing lambda must have network access to the postgres cluster.
 
+## HTTP API
+
+The function exposes a small REST API. Each resource is idempotent: a `POST` carrying `useExisting: true` adopts
+an object that already exists instead of failing, which lets an infrastructure module take ownership of objects
+that were created by hand.
+
+| Resource            | Routes                                                    | Notes                                                                                       |
+|---------------------|-----------------------------------------------------------|---------------------------------------------------------------------------------------------|
+| Databases           | `/databases`, `/databases/{name}`                          |                                                                                             |
+| Roles               | `/roles`, `/roles/{name}`                                  | `attributes`: `createDb`, `createRole`, `replication`                                       |
+| Role members        | `/roles/{target}/members`                                  |                                                                                             |
+| Schema privileges   | `/databases/{database}/schema_privileges`                  | Grants *full* access to a database and its `public` schema                                  |
+| Table privileges    | `/databases/{database}/table_privileges`                   | Grants a specific (typically read-only) set of privileges on a schema                       |
+| Default grants      | `/roles/{role}/default_grants`                             |                                                                                             |
+| Publications        | `/databases/{database}/publications`                       | `FOR ALL TABLES`, `FOR TABLES IN SCHEMA` (postgres 15+), or `FOR TABLE`                      |
+| Replication slots   | `/databases/{database}/replication_slots`                  | `DELETE` really drops the slot                                                              |
+| Settings            | `GET /settings`                                            | Reports `wal_level`, the current user, and replication slot usage                           |
+
+### Logical replication
+
+Publications and replication slots exist to support logical replication consumers (e.g. Google Datastream).
+They require the server to run with `wal_level = logical`; on Cloud SQL that means setting the
+`cloudsql.logical_decoding` database flag to `on`, which requires an instance restart. `GET /settings` reports
+the current `wal_level` so a caller can detect this before it tries to create a slot.
+
+Creating a slot also requires the admin role itself to have the `REPLICATION` attribute. The admin role can grant
+that to itself (`PUT /roles/{admin}` with `attributes.replication = true`) because Cloud SQL permits members of
+`cloudsqlsuperuser` to set the attribute.
+
+Deleting a replication slot is the one destructive operation in this API. Every other resource treats `DELETE` as
+a no-op, because dropping a database or a role would destroy data that the caller did not intend to lose. A slot is
+different: an abandoned logical slot retains WAL indefinitely and will eventually fill the instance's disk, so it
+must be dropped when its consumer goes away. A slot that still has a consumer attached cannot be dropped, so the
+consumer is disconnected first.
+
 ## How it works
 
 There are 3 actions that the AWS code performs to grant database access:

@@ -3,6 +3,8 @@ version: '3.8'
 services:
   db:
     image: postgres
+    # wal_level=logical is required to create publications and logical replication slots
+    command: ["postgres", "-c", "wal_level=logical"]
     ports:
       - 8432:5432
     environment:
