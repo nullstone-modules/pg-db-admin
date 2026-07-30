@@ -14,6 +14,23 @@ func createStore(t *testing.T) *postgresql.Store {
 	return postgresql.NewStore(connUrl)
 }
 
+// connUrlAs builds a connection url for a role other than the superuser the tests normally use.
+// Cloud SQL never gives out a real superuser, so the behavior that matters in production is the behavior
+// of a CREATEROLE admin -- which differs enough that some tests have to connect as one.
+func connUrlAs(user, password string) string {
+	return "postgres://" + user + ":" + password + "@localhost:8432/postgres?sslmode=disable"
+}
+
+func createStoreAs(t *testing.T, user, password string) *postgresql.Store {
+	return postgresql.NewStore(connUrlAs(user, password))
+}
+
+func openDbAs(t *testing.T, user, password, database string) *sql.DB {
+	db, err := postgresql.OpenDatabase(connUrlAs(user, password), database)
+	require.NoError(t, err, "connecting to %q as %q", database, user)
+	return db
+}
+
 // openDb opens a direct connection so that tests can verify the effects of the store's operations
 func openDb(t *testing.T, database string) *sql.DB {
 	db, err := postgresql.OpenDatabase(connUrl, database)

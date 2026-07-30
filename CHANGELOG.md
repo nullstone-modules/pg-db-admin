@@ -1,3 +1,8 @@
+# 0.9.1 (Jul 30, 2026)
+* Fixed temporary role membership on postgres 16+, where a `CREATEROLE` admin holds `ADMIN OPTION` without `INHERIT`.
+  Membership is now detected with `pg_has_role` and granted `WITH INHERIT TRUE`.
+* Table privileges now acquire every relation owner's privileges before granting, covering views and materialized views.
+
 # 0.9.0 (Jul 30, 2026)
 * Added `replication` to role attributes. This emits `REPLICATION` on `CREATE ROLE` and adds it to an existing role through `ALTER ROLE ... WITH REPLICATION`.
   Role attributes are now only ever added, never removed.

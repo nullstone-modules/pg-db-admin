@@ -61,7 +61,7 @@ func (d *Databases) Create(obj Database) (*Database, error) {
 	var grant Revoker = NoopRevoker{}
 	if obj.Owner != "" && !info.IsSuperuser {
 		var err error
-		grant, err = GrantRoleMembership(db, obj.Owner, info.CurrentUser)
+		grant, err = GrantRoleMembership(db, obj.Owner, info)
 		if err != nil {
 			return nil, fmt.Errorf("error granting temporary membership: %w", err)
 		}

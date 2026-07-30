@@ -21,6 +21,7 @@ const (
 	FeatureReplicationSlot
 	FeaturePublication
 	FeaturePublicationSchema
+	FeatureRoleInheritOption
 )
 
 type Features map[FeatureName]bool
@@ -71,6 +72,11 @@ func CalcSupportedFeatures(dbVersion semver.Version) Features {
 
 		// CREATE PUBLICATION ... FOR TABLES IN SCHEMA support
 		FeaturePublicationSchema: semver.MustParseRange(">=15.0.0")(dbVersion),
+
+		// GRANT ... WITH INHERIT TRUE support
+		// Postgres 16 made a membership's inherit behavior settable per grant, and started granting
+		// CREATEROLE users ADMIN OPTION (with INHERIT FALSE) on the roles they create
+		FeatureRoleInheritOption: semver.MustParseRange(">=16.0.0")(dbVersion),
 	}
 }
 

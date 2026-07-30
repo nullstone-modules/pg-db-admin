@@ -70,7 +70,7 @@ func (g *DefaultGrants) Update(key DefaultGrantKey, grant DefaultGrant) (*Defaul
 	var revoker Revoker = NoopRevoker{}
 	var tempErr error
 	if !info.IsSuperuser {
-		revoker, tempErr = GrantRoleMembership(db, grant.Role, info.CurrentUser)
+		revoker, tempErr = GrantRoleMembership(db, grant.Role, info)
 		// We only care about this error if the privilege sql didn't work down below
 	}
 

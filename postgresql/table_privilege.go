@@ -145,70 +145,71 @@ func (t *TablePrivileges) Drop(key TablePrivilegeKey) (bool, error) {
 	return true, nil
 }
 
+// grantSchema grants access to a schema's relations, present and future.
+//
+// `GRANT ... ON ALL TABLES IN SCHEMA` needs grant option on every relation it touches, which an admin only
+// holds for relations owned by roles whose privileges it has. The statement is also all-or-nothing: one
+// relation owned by an unreachable role fails the whole grant. So the owners' privileges are acquired first,
+// held for the duration, and released once at the end.
 func (t *TablePrivileges) grantSchema(db *sql.DB, obj TablePrivilege, schema string, privileges string, info *DbInfo) error {
+	owners, err := readRelationOwners(db, schema)
+	if err != nil {
+		return err
+	}
+	futureFrom := t.resolveFutureFromRoles(obj, owners)
+
+	// The owners are needed to grant on their existing relations, the future roles to alter their defaults
+	needed := owners
+	if obj.IncludeFuture {
+		needed = union(owners, futureFrom)
+	}
+
+	var revoker Revoker = NoopRevoker{}
+	var tempErr error
+	if !info.IsSuperuser {
+		revoker, tempErr = GrantRoleMemberships(db, needed, info)
+		// We only care about this error if the privilege sql below didn't work
+	}
+
 	quotedRole := pq.QuoteIdentifier(obj.Role)
 	quotedSchema := pq.QuoteIdentifier(schema)
 
 	log.Printf("Granting %s on schema %q in database %q to %q\n", privileges, schema, obj.Database, obj.Role)
-	sq := strings.Join([]string{
+	statements := []string{
 		fmt.Sprintf(`GRANT USAGE ON SCHEMA %s TO %s;`, quotedSchema, quotedRole),
 		fmt.Sprintf(`GRANT %s ON ALL TABLES IN SCHEMA %s TO %s;`, privileges, quotedSchema, quotedRole),
-	}, " ")
-	if _, err := db.Exec(sq); err != nil {
-		return fmt.Errorf("error granting %s on schema %q to %q: %w", privileges, schema, obj.Role, err)
 	}
-
-	if !obj.IncludeFuture {
-		return nil
-	}
-
-	futureFrom, err := t.resolveFutureFromRoles(db, obj, schema)
-	if err != nil {
-		return err
-	}
-	for _, fromRole := range futureFrom {
-		if err := t.alterDefaultPrivileges(db, obj, schema, privileges, fromRole, info); err != nil {
-			return err
+	if obj.IncludeFuture {
+		for _, fromRole := range futureFrom {
+			statements = append(statements, fmt.Sprintf(`ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT %s ON TABLES TO %s;`,
+				pq.QuoteIdentifier(fromRole), quotedSchema, privileges, quotedRole))
+		}
+		// An omitted FOR ROLE clause applies to objects created by the current user
+		if len(futureFrom) < 1 {
+			statements = append(statements, fmt.Sprintf(`ALTER DEFAULT PRIVILEGES IN SCHEMA %s GRANT %s ON TABLES TO %s;`,
+				quotedSchema, privileges, quotedRole))
 		}
 	}
-	// An empty FOR ROLE clause applies to objects created by the current user
-	if len(futureFrom) < 1 {
-		return t.alterDefaultPrivileges(db, obj, schema, privileges, "", info)
-	}
-	return nil
-}
-
-// alterDefaultPrivileges grants the privileges on tables that fromRole creates in the schema going forward
-// Altering another role's default privileges requires membership in that role, so -- like DefaultGrants --
-// a non-superuser admin temporarily grants itself membership
-func (t *TablePrivileges) alterDefaultPrivileges(db *sql.DB, obj TablePrivilege, schema string, privileges string, fromRole string, info *DbInfo) error {
-	forRole := ""
-	var revoker Revoker = NoopRevoker{}
-	var tempErr error
-	if fromRole != "" {
-		forRole = fmt.Sprintf("FOR ROLE %s ", pq.QuoteIdentifier(fromRole))
-		if !info.IsSuperuser {
-			revoker, tempErr = GrantRoleMembership(db, fromRole, info.CurrentUser)
-			// We only care about this error if the privilege sql didn't work down below
-		}
-	}
-	if revoker == nil {
-		revoker = NoopRevoker{}
-	}
-
-	log.Printf("Granting %s on future tables in schema %q created by %q to %q\n", privileges, schema, orCurrentUser(fromRole, info), obj.Role)
-	sq := fmt.Sprintf(`ALTER DEFAULT PRIVILEGES %sIN SCHEMA %s GRANT %s ON TABLES TO %s;`,
-		forRole, pq.QuoteIdentifier(schema), privileges, pq.QuoteIdentifier(obj.Role))
 
 	errs := make([]error, 0)
-	if _, err := db.Exec(sq); err != nil {
-		if tempErr != nil {
-			errs = append(errs, fmt.Errorf("error granting temporary membership: %w", tempErr))
+	for _, sq := range statements {
+		if _, err := db.Exec(sq); err != nil {
+			errs = append(errs, fmt.Errorf("error granting %s on schema %q to %q: %w", privileges, schema, obj.Role, err))
+			break
 		}
-		errs = append(errs, fmt.Errorf("error altering default privileges in schema %q for role %q: %w", schema, orCurrentUser(fromRole, info), err))
 	}
-	if revokeErr := revoker.Revoke(db); revokeErr != nil {
-		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", revokeErr))
+	if len(errs) > 0 && tempErr != nil {
+		// Granting on a relation requires the privileges of its owner. Naming the owners that could not be
+		// reached turns this into a one-statement fix instead of a hunt through the schema.
+		errs = append(errs, fmt.Errorf("%s cannot act on behalf of every owner in schema %q. "+
+			"Grant the missing memberships by hand (for example `GRANT %s TO %s WITH INHERIT TRUE`) "+
+			"or remove those tables from replication: %w",
+			info.CurrentUser, schema, pq.QuoteIdentifier("<owner>"), pq.QuoteIdentifier(info.CurrentUser), tempErr))
+	}
+	if revoker != nil {
+		if revokeErr := revoker.Revoke(db); revokeErr != nil {
+			errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", revokeErr))
+		}
 	}
 	if len(errs) > 0 {
 		return multierror.New(errs)
@@ -216,17 +217,12 @@ func (t *TablePrivileges) alterDefaultPrivileges(db *sql.DB, obj TablePrivilege,
 	return nil
 }
 
-func (t *TablePrivileges) resolveFutureFromRoles(db *sql.DB, obj TablePrivilege, schema string) ([]string, error) {
+func (t *TablePrivileges) resolveFutureFromRoles(obj TablePrivilege, owners []string) []string {
 	found := map[string]bool{}
 	for _, role := range obj.FutureFromRoles {
 		found[role] = true
 	}
-
 	if obj.FutureFromTableOwners {
-		owners, err := readTableOwners(db, schema)
-		if err != nil {
-			return nil, err
-		}
 		for _, owner := range owners {
 			found[owner] = true
 		}
@@ -234,7 +230,17 @@ func (t *TablePrivileges) resolveFutureFromRoles(db *sql.DB, obj TablePrivilege,
 
 	roles := keys(found)
 	sort.Strings(roles)
-	return roles, nil
+	return roles
+}
+
+func union(first, second []string) []string {
+	found := map[string]bool{}
+	for _, cur := range append(append([]string{}, first...), second...) {
+		found[cur] = true
+	}
+	result := keys(found)
+	sort.Strings(result)
+	return result
 }
 
 // readUserSchemas lists the schemas that hold user data, excluding the catalogs postgres manages itself
@@ -261,10 +267,18 @@ ORDER BY nspname`
 	return schemas, rows.Err()
 }
 
-func readTableOwners(db *sql.DB, schema string) ([]string, error) {
-	rows, err := db.Query(`SELECT DISTINCT tableowner FROM pg_tables WHERE schemaname = $1`, schema)
+// readRelationOwners lists the roles owning anything in the schema that `GRANT ... ON ALL TABLES` touches.
+// That covers more than pg_tables: ordinary and partitioned tables, views, materialized views, and foreign
+// tables. Missing an owner here means the grant is denied on the relations that role owns.
+func readRelationOwners(db *sql.DB, schema string) ([]string, error) {
+	sq := `SELECT DISTINCT pg_get_userbyid(c.relowner)
+FROM pg_class c
+	JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = $1 AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+ORDER BY 1`
+	rows, err := db.Query(sq, schema)
 	if err != nil {
-		return nil, fmt.Errorf("error reading table owners in schema %q: %w", schema, err)
+		return nil, fmt.Errorf("error reading relation owners in schema %q: %w", schema, err)
 	}
 	defer rows.Close()
 
