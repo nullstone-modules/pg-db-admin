@@ -125,9 +125,8 @@ func (t *TablePrivileges) Update(key TablePrivilegeKey, obj TablePrivilege) (*Ta
 	}
 
 	if obj.GrantConnect {
-		sq := fmt.Sprintf(`GRANT CONNECT ON DATABASE %s TO %s`, pq.QuoteIdentifier(obj.Database), pq.QuoteIdentifier(obj.Role))
-		if _, err := db.Exec(sq); err != nil {
-			return nil, fmt.Errorf("error granting connect on database %q to %q: %w", obj.Database, obj.Role, err)
+		if err := t.grantConnect(db, obj, info); err != nil {
+			return nil, err
 		}
 	}
 
@@ -145,6 +144,37 @@ func (t *TablePrivileges) Drop(key TablePrivilegeKey) (bool, error) {
 	return true, nil
 }
 
+// grantConnect grants CONNECT on the database, which requires the privileges of the database's owner
+func (t *TablePrivileges) grantConnect(db *sql.DB, obj TablePrivilege, info *DbInfo) error {
+	var revoker Revoker = NoopRevoker{}
+	if !info.IsSuperuser {
+		owner, err := readDatabaseOwner(db)
+		if err != nil {
+			return err
+		}
+		// A membership error is not reported here: the grant below may still succeed, and if it does not,
+		// the verification at the end says what to do about it
+		revoker, _ = GrantRoleMemberships(db, []string{owner}, info)
+	}
+
+	errs := make([]error, 0)
+	sq := fmt.Sprintf(`GRANT CONNECT ON DATABASE %s TO %s`, pq.QuoteIdentifier(obj.Database), pq.QuoteIdentifier(obj.Role))
+	if _, err := db.Exec(sq); err != nil {
+		errs = append(errs, fmt.Errorf("error granting connect on database %q to %q: %w", obj.Database, obj.Role, err))
+	}
+	if revokeErr := revoker.Revoke(db); revokeErr != nil {
+		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", revokeErr))
+	}
+	if len(errs) > 0 {
+		return multierror.New(errs)
+	}
+
+	// Granting a privilege the grantor cannot grant is a warning, not an error, so the statement above can
+	// succeed having granted nothing. What matters is whether the role can connect, however it got the right.
+	return verifyGranted(db, `SELECT has_database_privilege($1, $2, 'CONNECT')`, obj.Role, obj.Database,
+		fmt.Sprintf("%q still cannot connect to database %q", obj.Role, obj.Database), info)
+}
+
 // grantSchema grants access to a schema's relations, present and future.
 //
 // `GRANT ... ON ALL TABLES IN SCHEMA` needs grant option on every relation it touches, which an admin only
@@ -158,10 +188,15 @@ func (t *TablePrivileges) grantSchema(db *sql.DB, obj TablePrivilege, schema str
 	}
 	futureFrom := t.resolveFutureFromRoles(obj, owners)
 
-	// The owners are needed to grant on their existing relations, the future roles to alter their defaults
-	needed := owners
+	// GRANT USAGE ON SCHEMA needs the schema owner, the table grant needs each relation's owner,
+	// and ALTER DEFAULT PRIVILEGES needs the roles whose future objects are being covered
+	schemaOwner, err := readSchemaOwner(db, schema)
+	if err != nil {
+		return err
+	}
+	needed := union(owners, []string{schemaOwner})
 	if obj.IncludeFuture {
-		needed = union(owners, futureFrom)
+		needed = union(needed, futureFrom)
 	}
 
 	var revoker Revoker = NoopRevoker{}
@@ -214,7 +249,25 @@ func (t *TablePrivileges) grantSchema(db *sql.DB, obj TablePrivilege, schema str
 	if len(errs) > 0 {
 		return multierror.New(errs)
 	}
-	return nil
+
+	// GRANT USAGE ON SCHEMA is a warning rather than an error when the grantor cannot grant it, so confirm
+	// the role really ended up with access instead of trusting that the statement did something
+	return verifyGranted(db, `SELECT has_schema_privilege($1, $2, 'USAGE')`, obj.Role, schema,
+		fmt.Sprintf("%q still has no access to schema %q", obj.Role, schema), info)
+}
+
+// verifyGranted turns a grant that postgres downgraded to a warning into an actionable error
+func verifyGranted(db *sql.DB, query string, role string, target string, summary string, info *DbInfo) error {
+	var granted bool
+	if err := db.QueryRow(query, role, target).Scan(&granted); err != nil {
+		return fmt.Errorf("error verifying the grant to %q on %q: %w", role, target, err)
+	}
+	if granted {
+		return nil
+	}
+	return fmt.Errorf("%s: postgres accepted the grant but granted nothing, because %s does not hold it with "+
+		"grant option. Grant %s membership in the owner (`GRANT \"<owner>\" TO %s WITH INHERIT TRUE`)",
+		summary, info.CurrentUser, info.CurrentUser, pq.QuoteIdentifier(info.CurrentUser))
 }
 
 func (t *TablePrivileges) resolveFutureFromRoles(obj TablePrivilege, owners []string) []string {
@@ -241,6 +294,26 @@ func union(first, second []string) []string {
 	result := keys(found)
 	sort.Strings(result)
 	return result
+}
+
+// readSchemaOwner reads the role that owns the schema.
+//
+// A schema owned by `pg_database_owner` (which is how postgres 15 and later own `public`) reports the database
+// owner instead: membership in pg_database_owner is implicit and cannot be granted, but the database owner
+// carries the same rights.
+func readSchemaOwner(db *sql.DB, schema string) (string, error) {
+	var owner string
+	sq := `SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = $1`
+	if err := db.QueryRow(sq, schema).Scan(&owner); err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("schema %q does not exist", schema)
+		}
+		return "", fmt.Errorf("error reading the owner of schema %q: %w", schema, err)
+	}
+	if owner == "pg_database_owner" {
+		return readDatabaseOwner(db)
+	}
+	return owner, nil
 }
 
 // readUserSchemas lists the schemas that hold user data, excluding the catalogs postgres manages itself

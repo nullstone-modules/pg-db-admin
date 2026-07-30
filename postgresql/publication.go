@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"github.com/go-multierror/multierror"
 	"github.com/lib/pq"
 	"github.com/nullstone-io/go-rest-api"
 	"log"
@@ -92,9 +93,22 @@ func (p *Publications) Create(obj Publication) (*Publication, error) {
 		return nil, err
 	}
 
+	// CREATE PUBLICATION requires the CREATE privilege on the database, which by default only its owner holds
+	revoker, tempErr := grantPublicationOwners(db, obj, info)
+
 	log.Printf("Creating publication %q in database %q\n", obj.Name, obj.Database)
+	errs := make([]error, 0)
 	if _, err := db.Exec(p.generateCreateSql(obj)); err != nil {
-		return nil, fmt.Errorf("error creating publication %q: %w", obj.Name, err)
+		errs = append(errs, fmt.Errorf("error creating publication %q: %w", obj.Name, err))
+		if tempErr != nil {
+			errs = append(errs, tempErr)
+		}
+	}
+	if revokeErr := revoker.Revoke(db); revokeErr != nil {
+		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", revokeErr))
+	}
+	if len(errs) > 0 {
+		return nil, multierror.New(errs)
 	}
 	return &obj, nil
 }
@@ -163,13 +177,83 @@ func (p *Publications) Update(key PublicationKey, obj Publication) (*Publication
 			obj.Name, obj.Database, describeAllTables(existing.AllTables), describeAllTables(obj.AllTables))
 	}
 
-	for _, sq := range p.generateReconcileSql(obj, *existing) {
+	statements := p.generateReconcileSql(obj, *existing)
+	if len(statements) < 1 {
+		return &obj, nil
+	}
+
+	// `ALTER PUBLICATION ... ADD TABLE` requires ownership of each table being added
+	revoker, tempErr := grantPublicationOwners(db, obj, info)
+
+	errs := make([]error, 0)
+	for _, sq := range statements {
 		log.Printf("Reconciling publication %q: %s\n", obj.Name, sq)
 		if _, err := db.Exec(sq); err != nil {
-			return nil, fmt.Errorf("error altering publication %q: %w", obj.Name, err)
+			errs = append(errs, fmt.Errorf("error altering publication %q: %w", obj.Name, err))
+			if tempErr != nil {
+				errs = append(errs, tempErr)
+			}
+			break
 		}
 	}
+	if revokeErr := revoker.Revoke(db); revokeErr != nil {
+		errs = append(errs, fmt.Errorf("error revoking temporary membership: %w", revokeErr))
+	}
+	if len(errs) > 0 {
+		return nil, multierror.New(errs)
+	}
 	return &obj, nil
+}
+
+// grantPublicationOwners temporarily acquires the privileges needed to manage a publication:
+//
+//   - the database owner, because CREATE PUBLICATION checks the CREATE privilege on the database
+//   - the owners of any relations named explicitly, because adding a table to a publication requires
+//     ownership of that table
+//
+// A superuser needs none of this. Errors are returned for the caller to report only if the statement
+// it is about to run fails.
+func grantPublicationOwners(db *sql.DB, obj Publication, info *DbInfo) (Revoker, error) {
+	if info.IsSuperuser {
+		return NoopRevoker{}, nil
+	}
+
+	owners := make([]string, 0)
+	dbOwner, err := readDatabaseOwner(db)
+	if err != nil {
+		return NoopRevoker{}, err
+	}
+	owners = append(owners, dbOwner)
+
+	schemas := map[string]bool{}
+	for _, table := range obj.Tables {
+		schemas[table.Schema] = true
+	}
+	for _, schema := range keys(schemas) {
+		relationOwners, err := readRelationOwners(db, schema)
+		if err != nil {
+			return NoopRevoker{}, err
+		}
+		owners = append(owners, relationOwners...)
+	}
+
+	revoker, err := GrantRoleMemberships(db, owners, info)
+	if err != nil {
+		return revoker, fmt.Errorf("%s could not acquire the privileges of the database owner and the tables' owners; "+
+			"grant the missing memberships by hand (for example `GRANT %s TO %s WITH INHERIT TRUE`): %w",
+			info.CurrentUser, pq.QuoteIdentifier(dbOwner), pq.QuoteIdentifier(info.CurrentUser), err)
+	}
+	return revoker, nil
+}
+
+// readDatabaseOwner reads the owner of the database the connection is attached to
+func readDatabaseOwner(db *sql.DB) (string, error) {
+	var owner string
+	sq := `SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = current_database()`
+	if err := db.QueryRow(sq).Scan(&owner); err != nil {
+		return "", fmt.Errorf("error reading the database owner: %w", err)
+	}
+	return owner, nil
 }
 
 func (p *Publications) Drop(key PublicationKey) (bool, error) {

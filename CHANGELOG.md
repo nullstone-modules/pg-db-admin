@@ -1,3 +1,8 @@
+# 0.9.2 (Jul 30, 2026)
+* Publications now acquire the database owner's privileges, which `CREATE PUBLICATION` requires.
+* `GRANT CONNECT` and `GRANT USAGE ON SCHEMA` acquire the database and schema owner's privileges, and verify the result.
+  Postgres downgrades a grant the grantor cannot make to a warning, so these could silently grant nothing.
+
 # 0.9.1 (Jul 30, 2026)
 * Fixed temporary role membership on postgres 16+, where a `CREATEROLE` admin holds `ADMIN OPTION` without `INHERIT`.
   Membership is now detected with `pg_has_role` and granted `WITH INHERIT TRUE`.
