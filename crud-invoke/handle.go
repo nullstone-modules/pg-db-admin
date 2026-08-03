@@ -52,6 +52,8 @@ func CrudByName(s *postgresql.Store, name string) CrudHandler {
 		return Crud[postgresql.SchemaPrivilegeKey, postgresql.SchemaPrivilege]{DataAccess: s.SchemaPrivileges}
 	case "default_grants":
 		return Crud[postgresql.DefaultGrantKey, postgresql.DefaultGrant]{DataAccess: s.DefaultGrants}
+	case "parameter_privileges":
+		return Crud[postgresql.ParameterPrivilegeKey, postgresql.ParameterPrivilege]{DataAccess: s.ParameterPrivileges}
 	default:
 		return nil
 	}

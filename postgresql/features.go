@@ -22,6 +22,7 @@ const (
 	FeaturePublication
 	FeaturePublicationSchema
 	FeatureRoleInheritOption
+	FeatureParameterPrivileges
 )
 
 type Features map[FeatureName]bool
@@ -77,6 +78,11 @@ func CalcSupportedFeatures(dbVersion semver.Version) Features {
 		// Postgres 16 made a membership's inherit behavior settable per grant, and started granting
 		// CREATEROLE users ADMIN OPTION (with INHERIT FALSE) on the roles they create
 		FeatureRoleInheritOption: semver.MustParseRange(">=16.0.0")(dbVersion),
+
+		// GRANT SET ON PARAMETER support
+		// Postgres 15 added privileges on configuration parameters, along with the pg_parameter_acl
+		// catalog and has_parameter_privilege() used to read them back
+		FeatureParameterPrivileges: semver.MustParseRange(">=15.0.0")(dbVersion),
 	}
 }
 

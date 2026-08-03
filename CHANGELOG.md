@@ -1,3 +1,8 @@
+# 0.9.3 (Aug 03, 2026)
+* Added parameter privileges (`/roles/{role}/parameter_privileges`) granting a role `SET` on a superuser-context parameter such as `session_replication_role`.
+  Membership in `cloudsqlsuperuser`/`rds_superuser` does not confer this, because postgres never inherits role attributes through membership.
+  Requires postgres 15+; older servers fail with a clear error rather than silently granting nothing.
+
 # 0.9.2 (Jul 30, 2026)
 * Publications now acquire the database owner's privileges, which `CREATE PUBLICATION` requires.
 * `GRANT CONNECT` and `GRANT USAGE ON SCHEMA` acquire the database and schema owner's privileges, and verify the result.

@@ -133,6 +133,21 @@ func CreateRouter(store *postgresql.Store) *mux.Router {
 	r.Methods(http.MethodPut).Path("/roles/{role}/default_grants/{id}").HandlerFunc(defaultGrants.Update)
 	r.Methods(http.MethodDelete).Path("/roles/{role}/default_grants/{id}").HandlerFunc(defaultGrants.Delete)
 
+	parameterPrivileges := rest.Resource[postgresql.ParameterPrivilegeKey, postgresql.ParameterPrivilege]{
+		DataAccess: store.ParameterPrivileges,
+		KeyParser: func(r *http.Request) (postgresql.ParameterPrivilegeKey, error) {
+			vars := mux.Vars(r)
+			return postgresql.ParameterPrivilegeKey{
+				Role:      vars["role"],
+				Parameter: vars["parameter"],
+			}, nil
+		},
+	}
+	r.Methods(http.MethodPost).Path("/roles/{role}/parameter_privileges").HandlerFunc(parameterPrivileges.Create)
+	r.Methods(http.MethodGet).Path("/roles/{role}/parameter_privileges/{parameter}").HandlerFunc(parameterPrivileges.Get)
+	r.Methods(http.MethodPut).Path("/roles/{role}/parameter_privileges/{parameter}").HandlerFunc(parameterPrivileges.Update)
+	r.Methods(http.MethodDelete).Path("/roles/{role}/parameter_privileges/{parameter}").HandlerFunc(parameterPrivileges.Delete)
+
 	// Reports server configuration (wal_level, current user, replication slot usage)
 	// This lets callers detect an instance that cannot support logical replication before they try to use it
 	r.Methods(http.MethodGet).Path("/settings").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
