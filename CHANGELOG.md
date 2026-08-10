@@ -1,3 +1,6 @@
+# 0.9.4 (Aug 10, 2026)
+* Added conditional IAM to GCP bucket access to resolve IAM permission issues for Google-managed build buckets.
+
 # 0.9.3 (Aug 03, 2026)
 * Added parameter privileges (`/roles/{role}/parameter_privileges`) granting a role `SET` on a superuser-context parameter such as `session_replication_role`.
   Membership in `cloudsqlsuperuser`/`rds_superuser` does not confer this, because postgres never inherits role attributes through membership.
