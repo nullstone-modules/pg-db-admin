@@ -1,3 +1,9 @@
+# 0.10.0 (Sep 01, 2026)
+* Added ensure password (`POST /roles/{name}/ensure_password`, lambda event `ensure_role_password`): alters the role's password only when a login attempt with it fails.
+  Idempotent, so Terraform data sources can call it on every apply to heal a role created passwordless or reset outside the caller's control. A missing role errors; creation stays with `/roles`.
+* Role updates now probe a login before `ALTER ROLE ... WITH PASSWORD` and skip the ALTER when the password already works, keeping the password literal out of server logs under `log_statement=ddl`.
+  Only a confirmed login skips; any probe failure falls through to the ALTER.
+
 # 0.9.4 (Aug 10, 2026)
 * Added conditional IAM to GCP bucket access to resolve IAM permission issues for Google-managed build buckets.
 

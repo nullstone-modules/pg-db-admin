@@ -59,7 +59,10 @@ func Handle(ctx context.Context, event Event, store *postgresql.Store, adminConn
 
 	log.Printf("Saving admin role credentials to admin connection url secret (%s)\n", adminConnUrlSecretId)
 	// Build a connection url using the setup url, but with the admin role credentials
-	adminConnUrl := urlWithUserinfo(store.ConnectionUrl(), adminRole.Name, adminRole.Password)
+	adminConnUrl, err := postgresql.UrlWithUserinfo(store.ConnectionUrl(), adminRole.Name, adminRole.Password)
+	if err != nil {
+		return nil, fmt.Errorf("error building admin connection url: %w", err)
+	}
 	// Set the value of the secret in secrets manager that holds the admin credentials
 	versionId, err := secrets.SetString(ctx, adminConnUrlSecretId, adminConnUrl)
 	if err != nil {
@@ -92,10 +95,4 @@ func generateAdminRole(ctx context.Context, adminConnUrlSecretId string) (postgr
 	}
 
 	return role, nil
-}
-
-func urlWithUserinfo(connUrl, username, password string) string {
-	u, _ := url.Parse(connUrl)
-	u.User = url.UserPassword(username, password)
-	return u.String()
 }

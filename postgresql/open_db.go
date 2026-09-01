@@ -13,6 +13,16 @@ var (
 	dbOpenConnTimeout = 3 * time.Second
 )
 
+// UrlWithUserinfo returns connUrl with its userinfo replaced by the given credentials
+func UrlWithUserinfo(connUrl, username, password string) (string, error) {
+	u, err := url.Parse(connUrl)
+	if err != nil {
+		return "", fmt.Errorf("invalid connection url: %w", err)
+	}
+	u.User = url.UserPassword(username, password)
+	return u.String(), nil
+}
+
 func OpenDatabase(connUrl string, databaseName string) (*sql.DB, error) {
 	if databaseName != "" {
 		u, err := url.Parse(connUrl)

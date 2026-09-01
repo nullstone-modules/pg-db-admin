@@ -24,6 +24,7 @@ type Store struct {
 
 type DbOpener interface {
 	OpenDatabase(dbName string) (*sql.DB, error)
+	ConnectionUrl() string
 }
 
 func NewStore(connUrl string) *Store {

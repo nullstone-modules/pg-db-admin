@@ -16,6 +16,8 @@ func TestRole(t *testing.T) {
 	store := createStore(t)
 	defer store.Close()
 
+	dropRole(t, openDb(t, "postgres"), "role-test-user")
+
 	_, err := store.Roles.Create(postgresql.Role{
 		Name:     "role-test-user",
 		Password: "role-test-password",

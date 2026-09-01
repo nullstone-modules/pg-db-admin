@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/gorilla/mux"
 	"github.com/nullstone-io/go-rest-api"
 	"github.com/nullstone-modules/pg-db-admin/postgresql"
@@ -43,6 +44,34 @@ func CreateRouter(store *postgresql.Store) *mux.Router {
 	r.Methods(http.MethodGet).Path("/roles/{name}").HandlerFunc(roles.Get)
 	r.Methods(http.MethodPut).Path("/roles/{name}").HandlerFunc(roles.Update)
 	r.Methods(http.MethodDelete).Path("/roles/{name}").HandlerFunc(roles.Delete)
+
+	// Idempotent password repair: alters the role's password only when a login attempt with it fails.
+	// Callers invoke it on every apply; the password is never echoed back. A missing role is a 404 --
+	// creating roles stays the job of POST /roles.
+	r.Methods(http.MethodPost).Path("/roles/{name}/ensure_password").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		body, ok := rest.DecodeBody[struct {
+			Password string `json:"password"`
+		}](w, req)
+		if !ok {
+			return
+		}
+		result, err := store.Roles.EnsurePassword(mux.Vars(req)["name"], body.Password)
+		if err != nil {
+			if errors.Is(err, postgresql.ErrRoleNotFound) {
+				http.Error(w, err.Error(), http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(raw)
+	})
 
 	roleMembers := rest.Resource[postgresql.RoleMemberKey, postgresql.RoleMember]{
 		DataAccess: store.RoleMembers,

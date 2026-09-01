@@ -64,6 +64,10 @@ func HandleRequest(setupStore, adminStore *postgresql.Store) func(ctx context.Co
 			log.Println("Invocation (CRUD) Event", event.Tf.Action, event.Type)
 			return crud_invoke.Handle(ctx, event, adminStore)
 		}
+		if ok, event := IsEnsureRolePasswordEvent(rawEvent); ok {
+			log.Println("Ensure Role Password Event", event.Data.Name)
+			return HandleEnsureRolePassword(ctx, event, adminStore)
+		}
 
 		if ok, event := isFunctionUrlEvent(rawEvent); ok {
 			router := api.CreateRouter(adminStore)

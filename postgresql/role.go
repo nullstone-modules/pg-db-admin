@@ -3,12 +3,15 @@ package postgresql
 import (
 	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/lib/pq"
 	"github.com/nullstone-io/go-rest-api"
 	"log"
 	"strings"
 )
+
+var ErrRoleNotFound = errors.New("role not found")
 
 type Role struct {
 	Name     string `json:"name"`
@@ -121,13 +124,80 @@ func (r *Roles) Update(key string, role Role) (*Role, error) {
 		role.Password = ""
 		return &role, nil
 	}
-	log.Printf("Setting password for %q\n", role.Name)
-	updateSql := fmt.Sprintf(`ALTER ROLE %s WITH PASSWORD %s`, pq.QuoteIdentifier(role.Name), pq.QuoteLiteral(role.Password))
-	if _, err := db.Exec(updateSql); err != nil {
-		return nil, fmt.Errorf("error setting password: %w", err)
+	if verifyLogin(r.DbOpener.ConnectionUrl(), role.Name, role.Password) {
+		log.Printf("Password for %q already valid, skipping update\n", role.Name)
+		return &role, nil
 	}
-	log.Printf("Password set for %q\n", role.Name)
+	if err := setPassword(db, role.Name, role.Password); err != nil {
+		return nil, err
+	}
 	return &role, nil
+}
+
+type EnsurePasswordResult struct {
+	Name    string `json:"name"`
+	Changed bool   `json:"changed"`
+}
+
+// EnsurePassword alters the role's password only when a login attempt with it fails.
+// It never creates the role; a missing role returns ErrRoleNotFound.
+// Callers run it on every apply to heal roles created passwordless or reset outside their control.
+func (r *Roles) EnsurePassword(name, password string) (*EnsurePasswordResult, error) {
+	if name == "" || password == "" {
+		return nil, fmt.Errorf("name and password are required")
+	}
+	if existing, err := r.Read(name); err != nil {
+		return nil, err
+	} else if existing == nil {
+		return nil, fmt.Errorf("role %q: %w", name, ErrRoleNotFound)
+	}
+
+	if verifyLogin(r.DbOpener.ConnectionUrl(), name, password) {
+		log.Printf("Password for %q already valid\n", name)
+		return &EnsurePasswordResult{Name: name, Changed: false}, nil
+	}
+
+	db, err := r.DbOpener.OpenDatabase("")
+	if err != nil {
+		return nil, err
+	}
+	if err := setPassword(db, name, password); err != nil {
+		return nil, err
+	}
+	return &EnsurePasswordResult{Name: name, Changed: true}, nil
+}
+
+// verifyLogin reports whether the role authenticates with the given password.
+// Only a confirmed login skips the subsequent ALTER; any failure (bad password, pg_hba, network)
+// falls through to setting the password, so behavior is never worse than altering unconditionally.
+// The probe opens its own connection so a failed attempt never lands in the store's connection cache.
+func verifyLogin(connUrl, name, password string) bool {
+	probeUrl, err := UrlWithUserinfo(connUrl, name, password)
+	if err != nil {
+		return false
+	}
+	db, err := OpenDatabase(probeUrl, "")
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) {
+			log.Printf("Login check for %q failed (SQLSTATE %s)\n", name, pqErr.Code)
+		} else {
+			log.Printf("Login check for %q failed: %s\n", name, err)
+		}
+		return false
+	}
+	db.Close()
+	return true
+}
+
+func setPassword(db *sql.DB, name, password string) error {
+	log.Printf("Setting password for %q\n", name)
+	updateSql := fmt.Sprintf(`ALTER ROLE %s WITH PASSWORD %s`, pq.QuoteIdentifier(name), pq.QuoteLiteral(password))
+	if _, err := db.Exec(updateSql); err != nil {
+		return fmt.Errorf("error setting password: %w", err)
+	}
+	log.Printf("Password set for %q\n", name)
+	return nil
 }
 
 func (r *Roles) Drop(key string) (bool, error) {

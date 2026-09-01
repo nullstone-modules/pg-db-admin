@@ -25,6 +25,7 @@ that were created by hand.
 |---------------------|-----------------------------------------------------------|---------------------------------------------------------------------------------------------|
 | Databases           | `/databases`, `/databases/{name}`                          |                                                                                             |
 | Roles               | `/roles`, `/roles/{name}`                                  | `attributes`: `createDb`, `createRole`, `replication`                                       |
+| Ensure password     | `POST /roles/{name}/ensure_password`                       | Alters the password only when a login attempt with it fails; missing role is a 404          |
 | Role members        | `/roles/{target}/members`                                  |                                                                                             |
 | Schema privileges   | `/databases/{database}/schema_privileges`                  | Grants *full* access to a database and its `public` schema                                  |
 | Table privileges    | `/databases/{database}/table_privileges`                   | Grants a specific (typically read-only) set of privileges on a schema                       |
