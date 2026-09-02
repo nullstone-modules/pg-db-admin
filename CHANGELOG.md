@@ -1,3 +1,6 @@
+# 0.10.1 (Unreleased)
+* Role memberships are ensured on create and update using `pg_has_role`, and granted `WITH INHERIT TRUE` on postgres 16+. Previously an update was a no-op and an existing non-inheriting row was mistaken for the grant.
+
 # 0.10.0 (Sep 01, 2026)
 * Added ensure password (`POST /roles/{name}/ensure_password`, lambda event `ensure_role_password`): alters the role's password only when a login attempt with it fails.
   Idempotent, so Terraform data sources can call it on every apply to heal a role created passwordless or reset outside the caller's control. A missing role errors; creation stays with `/roles`.
